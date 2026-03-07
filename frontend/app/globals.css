@@ -4,10 +4,23 @@
 
 :root {
   color-scheme: light;
+  --page-shell: radial-gradient(circle at top left, rgba(247, 243, 232, 0.95), rgba(238, 245, 241, 0.96) 36%, rgba(248, 250, 252, 1));
+  --panel-glass: rgba(255, 255, 255, 0.76);
+  --panel-line: rgba(255, 255, 255, 0.72);
+}
+
+html {
+  background: #eef3ea;
 }
 
 body {
-  @apply bg-mist text-ink;
+  @apply text-ink;
+  background: var(--page-shell);
+}
+
+::selection {
+  background: rgba(111, 139, 107, 0.18);
+  color: #172033;
 }
 
 @keyframes drift-float {
@@ -65,4 +78,10 @@ body {
   transform: translateX(-120%);
   animation: shimmer-sweep 2.8s ease-in-out infinite;
   pointer-events: none;
+}
+
+.panel-glass {
+  background: var(--panel-glass);
+  border-color: var(--panel-line);
+  backdrop-filter: blur(18px);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -32,14 +32,13 @@ async function worldFetcher(url: string): Promise<WorldSnapshot | null> {
   return response.json() as Promise<WorldSnapshot>;
 }
 
-function locationTone(locationType: string, highlighted: boolean) {
-  const base = highlighted ? "ring-2 ring-moss/40 shadow-md" : "";
-  if (locationType === "cafe") return `border-amber-200 bg-amber-50 ${base}`;
-  if (locationType === "plaza") return `border-sky-200 bg-sky-50 ${base}`;
-  if (locationType === "park") return `border-emerald-200 bg-emerald-50 ${base}`;
-  if (locationType === "shop") return `border-violet-200 bg-violet-50 ${base}`;
-  if (locationType === "home") return `border-pink-200 bg-pink-50 ${base}`;
-  return `border-slate-200 bg-white ${base}`;
+function locationTone(locationType: string) {
+  if (locationType === "cafe") return "border-amber-200 bg-amber-50 text-amber-900";
+  if (locationType === "plaza") return "border-sky-200 bg-sky-50 text-sky-900";
+  if (locationType === "park") return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  if (locationType === "shop") return "border-violet-200 bg-violet-50 text-violet-900";
+  if (locationType === "home") return "border-pink-200 bg-pink-50 text-pink-900";
+  return "border-slate-200 bg-white text-slate-700";
 }
 
 function eventMatchesFilter(event: WorldEvent, filter: EventFilter) {
@@ -109,6 +108,15 @@ export function WorldCanvas({ runId, initialData }: Props) {
 
   const latestTick = world?.recent_events[0]?.tick_no ?? world?.run.current_tick ?? 0;
 
+  useEffect(() => {
+    if (!world || world.locations.length === 0) {
+      return;
+    }
+    setHighlightedLocationId((current) =>
+      current && world.locations.some((location) => location.id === current) ? current : world.locations[0].id,
+    );
+  }, [world]);
+
   const { agentNameMap, locationNameMap, visibleEvents, activeConversations, activeLocations } =
     useMemo(() => {
       const namesByAgent: Record<string, string> = {};
@@ -155,157 +163,127 @@ export function WorldCanvas({ runId, initialData }: Props) {
   }
 
   const isRunning = world.run.status === "running";
+  const selectedLocation =
+    world.locations.find((location) => location.id === highlightedLocationId) ?? world.locations[0] ?? null;
+  const selectedLocationBeat = selectedLocation ? beatBadge(locationBeat(selectedLocation.id, world.recent_events)) : null;
+  const residentCount = world.locations.reduce((count, location) => count + location.occupants.length, 0);
+  const latestEvent = world.recent_events[0] ?? null;
 
   return (
-    <div className="flex h-full min-h-[calc(100vh-11rem)] flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm">
-          <span
-            className={`h-2 w-2 rounded-full ${isValidating ? "animate-pulse bg-moss" : isRunning ? "bg-emerald-500" : "bg-slate-300"}`}
-          />
-          Tick {world.run.current_tick ?? 0} · {world.run.status}
-        </span>
-        <span className="rounded-full bg-white/40 px-3 py-2 text-xs text-slate-500">
-          {isRunning ? "每 5 秒自动更新" : "当前已暂停自动轮询"}
-        </span>
-        <button
-          type="button"
-          onClick={() => void mutate()}
-          className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 transition hover:border-moss hover:text-moss"
-        >
-          立即刷新
-        </button>
-        {error ? (
-          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            最近一次刷新失败，已保留上一份快照
-          </span>
-        ) : null}
+    <div className="flex h-full min-h-[calc(100vh-11rem)] flex-col gap-4 px-6 py-5">
+      <div className="rounded-[28px] border border-white/70 bg-white/75 p-4 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm text-white">
+              <span
+                className={`h-2 w-2 rounded-full ${isValidating ? "animate-pulse bg-emerald-300" : isRunning ? "bg-emerald-400" : "bg-slate-300"}`}
+              />
+              Tick {world.run.current_tick ?? 0} · {isRunning ? "运行中" : "已暂停"}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+              模拟时间 {formatSimTime(world)}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+              {isRunning ? "每 5 秒自动更新" : "暂停时停止轮询"}
+            </span>
+            {error ? (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                最近一次刷新失败，当前仍展示上一份快照
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => void mutate()}
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 transition hover:border-moss hover:text-moss"
+          >
+            立即刷新
+          </button>
+        </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(420px,1fr)]">
-        <div className="grid min-h-0 gap-4 xl:grid-rows-[minmax(380px,0.95fr)_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.75fr)_380px]">
+        <div className="grid min-h-0 gap-4 xl:grid-rows-[minmax(420px,1fr)_auto]">
           <TownMap
             world={world}
             agentNameMap={agentNameMap}
             highlightedLocationId={highlightedLocationId}
             onLocationClick={(locationId) => {
               setHighlightedLocationId(locationId);
-              const element = document.getElementById(`location-${locationId}`);
-              element?.scrollIntoView({ behavior: "smooth", block: "center" });
             }}
             onAgentClick={(agentId) => {
               router.push(`/runs/${runId}/agents/${agentId}`);
             }}
           />
 
-          <div className="min-h-0 rounded-3xl border border-slate-200 bg-white/70 p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-ink">地点卡片</h2>
-              <span className="text-xs text-slate-400">地图与卡片联动高亮</span>
-            </div>
-            <div className="grid max-h-full auto-rows-[auto] gap-4 overflow-auto pr-1 md:grid-cols-2">
-              <AnimatePresence mode="popLayout">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.9fr)]">
+            <div className="rounded-[28px] border border-slate-200 bg-white/75 p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">地点列表</p>
+                  <h2 className="mt-1 text-lg font-semibold text-ink">地图热点</h2>
+                </div>
+                <span className="text-xs text-slate-400">点击左侧地图或这里切换焦点</span>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {world.locations.map((location) => {
-                  const beat = locationBeat(location.id, world.recent_events);
-                  const badge = beatBadge(beat);
-                  const highlighted = location.id === highlightedLocationId;
-
+                  const badge = beatBadge(locationBeat(location.id, world.recent_events));
+                  const selected = location.id === selectedLocation?.id;
                   return (
-                    <motion.div
-                      id={`location-${location.id}`}
+                    <button
                       key={location.id}
-                      layout
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ type: "spring", stiffness: 260, damping: 24 }}
-                      className={`relative rounded-3xl border px-5 py-5 shadow-sm transition ${locationTone(location.location_type, highlighted)}`}
+                      type="button"
+                      onClick={() => setHighlightedLocationId(location.id)}
+                      className={`rounded-3xl border px-4 py-4 text-left transition ${
+                        selected ? "border-moss bg-mist shadow-sm" : "border-slate-200 bg-white hover:border-moss/60"
+                      }`}
                     >
-                      <div className="pointer-events-none absolute right-4 top-4 h-20 w-20 rounded-full bg-white/35 blur-2xl" />
-
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h2 className="text-xl font-semibold text-ink">{location.name}</h2>
-                          <p className="mt-0.5 text-xs uppercase tracking-[0.18em] text-slate-500">
+                          <p className="text-base font-semibold text-ink">{location.name}</p>
+                          <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">
                             {location.location_type}
                           </p>
                         </div>
-                        <div className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-slate-600">
-                          {location.occupants.length}/{location.capacity}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${badge.cls}`}>
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${badge.cls}`}>
                           {badge.label}
                         </span>
-                        {highlighted ? (
-                          <span className="rounded-full bg-moss/10 px-3 py-1 text-xs font-medium text-moss">
-                            地图已聚焦
-                          </span>
-                        ) : null}
                       </div>
-
-                      <div className="mt-4 space-y-2">
-                        {location.occupants.length === 0 ? (
-                          <p className="text-sm text-slate-400">这里暂时没有居民。</p>
-                        ) : (
-                          <AnimatePresence>
-                            {location.occupants.map((agent) => (
-                              <motion.div
-                                key={agent.id}
-                                layout
-                                initial={{ opacity: 0, scale: 0.93 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.9 }}
-                                transition={{ type: "spring", stiffness: 300, damping: 28 }}
-                              >
-                                <Link
-                                  href={`/runs/${runId}/agents/${agent.id}`}
-                                  className="group flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 px-3 py-2.5 transition hover:border-moss hover:bg-white hover:shadow-md"
-                                >
-                                  <AgentAvatar
-                                    agentId={agent.id}
-                                    name={agent.name}
-                                    occupation={agent.occupation}
-                                    status={inferAgentStatus(agent.id, world.recent_events)}
-                                    size="sm"
-                                  />
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate font-medium text-ink transition-colors group-hover:text-moss">
-                                      {agent.name}
-                                    </p>
-                                    <p className="truncate text-xs text-slate-500">{formatGoal(agent.current_goal)}</p>
-                                  </div>
-                                  <span className="flex-shrink-0 text-xs uppercase tracking-wide text-slate-400">
-                                    {agent.occupation ?? "居民"}
-                                  </span>
-                                </Link>
-                              </motion.div>
-                            ))}
-                          </AnimatePresence>
-                        )}
+                      <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+                        <span>{location.occupants.length} / {location.capacity} 人</span>
+                        <span>{selected ? "当前聚焦" : "查看详情"}</span>
                       </div>
-                    </motion.div>
+                    </button>
                   );
                 })}
-              </AnimatePresence>
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-4">
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">操作提示</p>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
+                <p>点击地图地点可聚焦右侧详情，快速查看该地点的居民和当前节奏。</p>
+                <p>点击地图居民头像可直接进入个人页，继续查看记忆、关系和近期行为。</p>
+                <p>当世界暂停时，自动轮询会停止，这时更适合逐帧排查行为链路。</p>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="grid min-h-0 gap-4 xl:grid-rows-[auto_auto_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
+          <div className="rounded-[28px] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
             <div className="flex items-center justify-between">
-              <div className="text-xs uppercase tracking-[0.22em] text-moss">小镇概况</div>
-              <span className="text-xs text-slate-400">{formatSimTime(world)}</span>
+              <div>
+                <div className="text-xs uppercase tracking-[0.22em] text-moss">小镇概况</div>
+                <h2 className="mt-1 text-lg font-semibold text-ink">当前运行摘要</h2>
+              </div>
+              <span className="text-xs text-slate-400">实时</span>
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2">
               {[
                 { label: "地点", value: world.locations.length },
-                {
-                  label: "居民",
-                  value: world.locations.reduce((count, location) => count + location.occupants.length, 0),
-                },
+                { label: "居民", value: residentCount },
                 { label: "活跃", value: activeLocations },
                 { label: "对话", value: activeConversations },
                 { label: "Tick", value: latestTick },
@@ -330,17 +308,77 @@ export function WorldCanvas({ runId, initialData }: Props) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white/60 p-3">
-            <div className="flex items-start gap-2 text-xs text-slate-500">
-              <span className="text-moss">💡</span>
-              <p>点击地图地点可高亮对应卡片，暂停时自动停止轮询</p>
+          <div className="rounded-[28px] border border-slate-200 bg-white/80 p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">聚焦地点</p>
+                <h2 className="mt-1 text-xl font-semibold text-ink">{selectedLocation?.name ?? "暂无地点"}</h2>
+                <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                  {selectedLocation?.location_type ?? "-"}
+                </p>
+              </div>
+              {selectedLocationBeat ? (
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${selectedLocationBeat.cls}`}>
+                  {selectedLocationBeat.label}
+                </span>
+              ) : null}
             </div>
+
+            {selectedLocation ? (
+              <>
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                  <span className={`rounded-full border px-2.5 py-1 ${locationTone(selectedLocation.location_type)}`}>
+                    容量 {selectedLocation.occupants.length} / {selectedLocation.capacity}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                    地点 ID {selectedLocation.id}
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {selectedLocation.occupants.length === 0 ? (
+                    <p className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">这里暂时没有居民。</p>
+                  ) : (
+                    selectedLocation.occupants.map((agent) => (
+                      <Link
+                        key={agent.id}
+                        href={`/runs/${runId}/agents/${agent.id}`}
+                        className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 transition hover:border-moss hover:shadow-sm"
+                      >
+                        <AgentAvatar
+                          agentId={agent.id}
+                          name={agent.name}
+                          occupation={agent.occupation}
+                          status={inferAgentStatus(agent.id, world.recent_events)}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-ink group-hover:text-moss">{agent.name}</p>
+                          <p className="truncate text-xs text-slate-500">{formatGoal(agent.current_goal)}</p>
+                        </div>
+                        <span className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                          {agent.occupation ?? "居民"}
+                        </span>
+                      </Link>
+                    ))
+                  )}
+                </div>
+              </>
+            ) : null}
           </div>
 
-          <div className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-ink">近期事件</h2>
-              <div className="flex gap-1">
+          <div className="flex min-h-0 flex-col rounded-[28px] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">近期事件</p>
+                <h2 className="mt-1 text-lg font-semibold text-ink">世界情报流</h2>
+                {latestEvent ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    最近一条来自 T{latestEvent.tick_no}，可用筛选器快速聚焦某类行为。
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-1">
                 {EVENT_FILTERS.map((filter) => {
                   const active = filter.id === eventFilter;
                   return (

@@ -58,7 +58,6 @@ export function RunControlPanel({ runId, status }: RunControlPanelProps) {
 
   return (
     <div className="space-y-4">
-      {/* 状态指示器 */}
       <div className="flex items-center gap-2">
         <span
           className={`h-3 w-3 rounded-full ${
@@ -66,11 +65,10 @@ export function RunControlPanel({ runId, status }: RunControlPanelProps) {
           }`}
         />
         <span className="text-sm font-medium text-slate-700">
-          {isRunning ? "🎬 世界运行中 - 居民自主活动" : "⏸️ 世界已暂停 - 导演控制模式"}
+          {isRunning ? "世界正在自主运行，居民会持续行动" : "世界已暂停，适合观察和注入事件"}
         </span>
       </div>
 
-      {/* 导演控制按钮 */}
       <div className="flex flex-wrap gap-3">
         {isRunning ? (
           <button
@@ -79,7 +77,6 @@ export function RunControlPanel({ runId, status }: RunControlPanelProps) {
             onClick={handlePause}
             className="inline-flex items-center gap-2 rounded-full bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
           >
-            <span>⏸️</span>
             <span>暂停世界</span>
           </button>
         ) : (
@@ -89,7 +86,6 @@ export function RunControlPanel({ runId, status }: RunControlPanelProps) {
             onClick={handleResume}
             className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
           >
-            <span>▶️</span>
             <span>恢复运行</span>
           </button>
         )}
@@ -98,22 +94,20 @@ export function RunControlPanel({ runId, status }: RunControlPanelProps) {
           type="button"
           disabled={isPending}
           onClick={handleStepTick}
-          className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-moss hover:text-moss disabled:opacity-60"
         >
-          <span>⏭️</span>
           <span>手动推进一帧</span>
         </button>
       </div>
 
       {message ? (
-        <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+        <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           {message}
         </p>
       ) : null}
 
-      {/* 导演提示 */}
-      <p className="text-xs text-slate-500">
-        💡 提示：世界默认自动运行，导演可随时暂停观察或手动推进特定时刻
+      <p className="text-xs leading-5 text-slate-500">
+        运行态适合观察整体节奏；暂停后可以逐帧推进，检查事件触发和角色反应。
       </p>
     </div>
   );

@@ -287,28 +287,31 @@ export function TownMap({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45 }}
-      className="flex h-full min-h-[460px] flex-col rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm"
+      className="flex h-full min-h-[460px] flex-col rounded-[28px] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur"
     >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs uppercase tracking-[0.22em] text-moss">小镇地图</div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <span className="flex items-center gap-1">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-[0.22em] text-moss">小镇地图</div>
+          <p className="mt-1 text-sm text-slate-500">拖拽平移、滚轮缩放，点击地点或居民查看更多信息。</p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-slate-500">
+          <span className="flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1">
             <span className="h-2 w-2 rounded-full bg-amber-500" />
             咖啡馆
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1">
             <span className="h-2 w-2 rounded-full bg-sky-500" />
             广场
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
             公园
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1">
             <span className="h-2 w-2 rounded-full bg-violet-500" />
             商店
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1">
             <span className="h-2 w-2 rounded-full bg-pink-500" />
             住宅
           </span>
@@ -335,7 +338,7 @@ export function TownMap({
           </button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(226,232,240,0.9)_55%,_rgba(220,252,231,0.5))]">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-[24px] border border-white/70 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(226,232,240,0.9)_55%,_rgba(220,252,231,0.5))]">
         <svg
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
           className="h-full min-h-[420px] w-full touch-none"

@@ -18,57 +18,41 @@ const EVENT_CONFIG: Record<string, {
   icon: string; 
   label: string; 
   color: string;
-  bgColor: string;
-  borderColor: string;
 }> = {
   talk: { 
     icon: "💬", 
     label: "对话", 
     color: "#ec4899",
-    bgColor: "bg-pink-50",
-    borderColor: "border-pink-200",
   },
   move: { 
     icon: "🚶", 
     label: "移动", 
     color: "#10b981",
-    bgColor: "bg-emerald-50",
-    borderColor: "border-emerald-200",
   },
   work: { 
     icon: "⚒️", 
     label: "工作", 
     color: "#f59e0b",
-    bgColor: "bg-amber-50",
-    borderColor: "border-amber-200",
   },
   rest: { 
     icon: "😴", 
     label: "休息", 
     color: "#6366f1",
-    bgColor: "bg-indigo-50",
-    borderColor: "border-indigo-200",
   },
   director_inject: { 
     icon: "📢", 
     label: "导演注入", 
     color: "#dc2626",
-    bgColor: "bg-red-50",
-    borderColor: "border-red-200",
   },
   plan: { 
     icon: "📋", 
     label: "计划", 
     color: "#8b5cf6",
-    bgColor: "bg-violet-50",
-    borderColor: "border-violet-200",
   },
   reflect: { 
     icon: "🔍", 
     label: "反思", 
     color: "#06b6d4",
-    bgColor: "bg-cyan-50",
-    borderColor: "border-cyan-200",
   },
 };
 
@@ -84,8 +68,6 @@ export function EventCard({
     icon: "✨",
     label: event.event_type,
     color: "#6b7280",
-    bgColor: "bg-gray-50",
-    borderColor: "border-gray-200",
   };
 
   const description = describeEvent(event, agentNameMap, locationNameMap);
@@ -108,21 +90,23 @@ export function EventCard({
         damping: 28,
       }}
       className={`
-        relative rounded-xl border px-3 py-2.5 text-sm
+        relative rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm
         transition-shadow hover:shadow-sm
-        ${config.bgColor}
-        ${config.borderColor}
         ${isLatest ? "ring-1 ring-offset-1" : ""}
       `}
       style={{
-        boxShadow: isLatest ? `0 2px 8px ${config.color}30` : undefined,
+        boxShadow: isLatest ? `0 4px 14px ${config.color}18` : undefined,
       }}
     >
-      <div className="relative">
+      <div
+        className="absolute inset-y-3 left-0 w-1 rounded-r-full"
+        style={{ backgroundColor: config.color }}
+      />
+      <div className="relative pl-1">
         {/* 头部：图标 + 类型 + Tick */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2">
-            <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white text-sm shadow-sm">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-slate-50 text-sm shadow-sm">
               {config.icon}
             </span>
             <div className="min-w-0">
@@ -130,7 +114,7 @@ export function EventCard({
                 {description}
               </p>
               {hasMessage && (
-                <p className="mt-0.5 text-xs italic text-gray-600">
+                <p className="mt-1 text-xs italic leading-5 text-gray-600">
                   「{messageText}」
                 </p>
               )}
@@ -143,7 +127,7 @@ export function EventCard({
           </div>
           <div className="flex flex-shrink-0 flex-col items-end gap-0.5">
             <span
-              className="rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium"
               style={{
                 backgroundColor: `${config.color}20`,
                 color: config.color,
@@ -158,7 +142,7 @@ export function EventCard({
         </div>
 
         {/* 参与者标签 */}
-        <div className="mt-1.5 flex flex-wrap gap-1">
+        <div className="mt-2 flex flex-wrap gap-1.5">
           {event.actor_agent_id && (
             <EventTag
               label={agentNameMap[event.actor_agent_id] || event.actor_agent_id}
@@ -191,13 +175,13 @@ export function EventCard({
 // 事件标签组件
 function EventTag({ label, type }: { label: string; type: "actor" | "target" | "location" }) {
   const colors = {
-    actor: "bg-sky-100 text-sky-700",
-    target: "bg-rose-100 text-rose-700",
-    location: "bg-emerald-100 text-emerald-700",
+    actor: "bg-sky-50 text-sky-700 border border-sky-100",
+    target: "bg-rose-50 text-rose-700 border border-rose-100",
+    location: "bg-emerald-50 text-emerald-700 border border-emerald-100",
   };
 
   return (
-    <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${colors[type]}`}>
+    <span className={`rounded-full px-2 py-0.5 text-[10px] ${colors[type]}`}>
       {label}
     </span>
   );
