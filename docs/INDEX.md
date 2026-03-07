@@ -20,6 +20,7 @@
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 技术架构与模块设计 | 开发者 |
 | [ESTIMATE.md](ESTIMATE.md) | 代码量与工期估算 | 开发者/PM |
 | [TASK_BREAKDOWN.md](TASK_BREAKDOWN.md) | 开发任务拆解 | 开发者 |
+| [RUN_QUALITY.md](RUN_QUALITY.md) | Truman world 运行质量评估 | 开发者/导演 |
 
 ### 开发指南
 
