@@ -1,6 +1,6 @@
 # AI Truman World MVP：Build vs Buy 分析
 
-- 版本：`v1.0`
+- 版本：`v0.1.0`
 - 状态：`分析`
 - 最后更新：`2026-03-07`
 

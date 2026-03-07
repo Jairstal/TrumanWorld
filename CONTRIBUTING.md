@@ -205,8 +205,9 @@ Fixed issue where simulation would hang when agent count is zero.
 1. **标题**：使用 Conventional Commits 格式
 2. **描述**：简要说明改动内容和目的
 3. **关联 Issue**：在描述中引用相关 Issue
-4. **测试**：确保测试通过
-5. **代码审查**：至少需要 1 人 review
+4. **测试**：确保测试通过，CI 检查通过
+5. **覆盖率**：新功能建议覆盖率 ≥ 80%
+6. **代码审查**：至少需要 1 人 review
 
 ### PR 模板
 
@@ -244,7 +245,9 @@ make lint
 遵循 [Semantic Versioning](https://semver.org/)
 
 - `MAJOR.MINOR.PATCH`
-- 例：`v1.0.0`
+- 例：`v0.1.0`
+
+MVP 阶段使用 `0.x.y` 版本号，正式发布后使用 `1.0.0`
 
 ### 发布步骤
 

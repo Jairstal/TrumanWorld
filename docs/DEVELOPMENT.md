@@ -221,6 +221,34 @@ Next.js 开发服务器会在终端输出编译状态和错误。
 
 ---
 
+## 🔄 CI/CD
+
+### GitHub Actions
+
+项目在每次 push 和 PR 时自动运行：
+
+| Job | 说明 |
+|-----|------|
+| `lint` | Python ruff check + format |
+| `frontend-check` | Frontend lint + build |
+| `test` | pytest + 覆盖率上传 Codecov |
+
+### Codecov 集成
+
+测试覆盖率会自动上传至 Codecov：
+https://codecov.io/gh/gqy20/TrumanWorld
+
+覆盖率阈值配置见 `codecov.yml`。
+
+### 本地运行 CI 检查
+
+```bash
+# 运行 pre-commit（包含 lint + format + actionlint）
+make pre-commit
+```
+
+---
+
 ## 🧪 测试
 
 ### 运行测试
@@ -241,6 +269,8 @@ cd backend
 uv run pytest --cov=app --cov-report=html
 open htmlcov/index.html
 ```
+
+覆盖率报告会自动上传至 [Codecov](https://codecov.io/gh/gqy20/TrumanWorld)。
 
 ### 测试分类
 

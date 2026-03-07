@@ -9,6 +9,19 @@
 ## [Unreleased]
 
 ### Added
+- (待添加)
+
+---
+
+## [v0.1.0] - 2026-03-07
+
+### Added
+- GitHub Actions CI 工作流 (Python lint + pytest)
+- GitHub Actions 前端 CI 检查 (lint + build)
+- pytest 覆盖率报告集成 Codecov
+- OpenAPI 文档增强 (tags, summaries, descriptions, examples)
+- README.md 添加 CI 和 Codecov 徽章
+- GitHub 仓库配置 topics 和 description
 - 初始项目骨架
 - MVP 产品与技术文档
 - `agents/` 配置驱动的 Agent 注册表
@@ -18,14 +31,7 @@
 - Alembic 迁移配置
 - Makefile 开发命令
 - MIT License 文件
-- 开发文档：DEVELOPMENT.md, INDEX.md, CONTRIBUTING.md, CHANGELOG.md
+- 开发文档：DEVELOPMENT.md, INDEX.md, CONTRIBUTING.md
 
 ### Changed
 - README 重构为产品宣传风格
-
----
-
-## [v0.1.0] - 2026-03-07
-
-### Added
-- 项目初始化
