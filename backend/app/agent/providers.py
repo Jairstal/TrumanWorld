@@ -28,6 +28,7 @@ DECISION_OUTPUT_SCHEMA = {
         },
         "target_location_id": {"type": ["string", "null"]},
         "target_agent_id": {"type": ["string", "null"]},
+        "message": {"type": ["string", "null"], "description": "对话消息内容（仅 talk 类型需要）"},
         "payload": {"type": "object"},
     },
     "required": ["action_type"],
@@ -39,6 +40,7 @@ class RuntimeDecision(BaseModel):
     action_type: str
     target_location_id: str | None = None
     target_agent_id: str | None = None
+    message: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -49,7 +51,19 @@ class AgentDecisionProvider(ABC):
 
 
 class HeuristicDecisionProvider(AgentDecisionProvider):
+    # 简单的问候语列表，用于启发式对话
+    TALK_MESSAGES = [
+        "你好啊！最近怎么样？",
+        "今天天气真不错！",
+        "有什么新鲜事吗？",
+        "好久不见！",
+        "最近工作怎么样？",
+        "一起喝杯咖啡吧？",
+    ]
+
     async def decide(self, invocation: Any) -> RuntimeDecision:
+        import random
+
         world = invocation.context.get("world", {})
         goal = world.get("current_goal")
         current_location_id = world.get("current_location_id")
@@ -69,6 +83,7 @@ class HeuristicDecisionProvider(AgentDecisionProvider):
             return RuntimeDecision(
                 action_type="talk",
                 target_agent_id=str(nearby_agent_id),
+                message=random.choice(self.TALK_MESSAGES),
             )
 
         if (

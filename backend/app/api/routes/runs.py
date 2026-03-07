@@ -69,17 +69,21 @@ async def create_run(
         f"Create run completed for {created.id}, starting scheduler (running: {scheduler.is_running(created.id)})"
     )
     if not scheduler.is_running(created.id):
+        from app.agent.registry import AgentRegistry
+        from app.agent.runtime import AgentRuntime
         from app.infra.db import async_engine
+        from app.infra.settings import get_settings
+
+        settings = get_settings()
+        # Create a shared agent runtime (not bound to any session)
+        agent_runtime = AgentRuntime(
+            registry=AgentRegistry(settings.project_root / "agents")
+        )
 
         async def tick_callback(rid: str) -> None:
-            from sqlalchemy.ext.asyncio import AsyncSession
-            from app.sim.service import SimulationService
-
-            # Create session and run tick
-            # Note: Don't catch exceptions here, let them propagate to scheduler
-            async with AsyncSession(async_engine) as new_session:
-                service = SimulationService(new_session)
-                await service.run_tick(rid)
+            # Use isolated tick method to avoid greenlet conflicts with anyio
+            service = SimulationService.create_for_scheduler(agent_runtime)
+            await service.run_tick_isolated(rid, async_engine)
 
         await scheduler.start_run(created.id, interval_seconds=5.0, callback=tick_callback)
         logger.info(f"Auto-scheduler started for run {created.id}")

@@ -132,12 +132,16 @@ class AgentRuntime:
 
     async def decide_intent(self, invocation: RuntimeInvocation) -> ActionIntent:
         decision = await self.decision_provider.decide(invocation)
+        # 将 message 合并到 payload 中，以便传递到 event
+        payload = dict(decision.payload)
+        if decision.message:
+            payload["message"] = decision.message
         return ActionIntent(
             agent_id=invocation.agent_id,
             action_type=decision.action_type,
             target_location_id=decision.target_location_id,
             target_agent_id=decision.target_agent_id,
-            payload=decision.payload,
+            payload=payload,
         )
 
     async def react(

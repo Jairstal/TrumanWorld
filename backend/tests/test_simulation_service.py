@@ -374,3 +374,87 @@ async def test_simulation_service_updates_relationships_from_talk_events(db_sess
     assert bob_relationships[0].trust == 0.05
     assert alice_memories[0].summary == "Talked with bob-5"
     assert bob_memories[0].summary == "Talked with alice-5"
+
+
+@pytest.mark.asyncio
+async def test_run_tick_isolated_with_separate_sessions(db_session):
+    """Test that run_tick_isolated properly handles session isolation.
+
+    This test verifies that the method correctly handles the case where
+    database operations need to be performed after agent runtime calls,
+    which is where greenlet conflicts can occur with anyio-based SDKs.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+    from app.agent.providers import HeuristicDecisionProvider
+    from app.agent.runtime import AgentRuntime
+    from app.agent.registry import AgentRegistry
+    from pathlib import Path
+    import tempfile
+
+    # Create a separate engine for isolated operations
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+
+    # Create tables
+    from app.store.models import Base
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Set up test data with the isolated engine
+    run_id = "run-isolated-1"
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        run = SimulationRun(
+            id=run_id, name="isolated", status="running", current_tick=0, tick_minutes=5
+        )
+        home = Location(
+            id="loc-home-isolated", run_id=run_id, name="Home", location_type="home", capacity=2
+        )
+        alice = Agent(
+            id="alice-isolated",
+            run_id=run_id,
+            name="Alice",
+            occupation="resident",
+            home_location_id="loc-home-isolated",
+            current_location_id="loc-home-isolated",
+            personality={},
+            profile={},
+            status={},
+            current_plan={},
+        )
+        session.add_all([run, home, alice])
+        await session.commit()
+
+    # Create service with heuristic provider (no SDK calls)
+    tmp_path = Path(tempfile.mkdtemp())
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "agent.yml").write_text("id: test\nname: Test\noccupation: test\nhome: home\n")
+    (agent_dir / "prompt.md").write_text("# Test")
+
+    registry = AgentRegistry(tmp_path)
+    runtime = AgentRuntime(registry=registry, decision_provider=HeuristicDecisionProvider())
+    service = SimulationService.create_for_scheduler(runtime)
+
+    # Run the isolated tick
+    result = await service.run_tick_isolated(
+        run_id,
+        engine,
+        [ActionIntent(agent_id="alice-isolated", action_type="rest")],
+    )
+
+    # Verify the results
+    assert result.tick_no == 1
+    assert len(result.accepted) == 1
+    assert result.accepted[0].action_type == "rest"
+
+    # Verify database state
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        run_repo = RunRepository(session)
+        updated_run = await run_repo.get(run_id)
+        assert updated_run is not None
+        assert updated_run.current_tick == 1
+
+    await engine.dispose()
+
+    # Cleanup
+    import shutil
+    shutil.rmtree(tmp_path)

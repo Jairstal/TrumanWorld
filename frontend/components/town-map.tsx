@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
-import * as d3 from "d3";
-import { motion } from "framer-motion";
+import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { WorldSnapshot, AgentSummary } from "@/lib/api";
 
 interface LocationNode {
@@ -16,10 +15,22 @@ interface LocationNode {
   occupants: AgentSummary[];
 }
 
+interface PositionedLocationNode extends LocationNode {
+  svgX: number;
+  svgY: number;
+}
+
 interface LocationLink {
   source: string;
   target: string;
-  distance: number;
+}
+
+interface MovePath {
+  id: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
 }
 
 interface TownMapProps {
@@ -27,305 +38,260 @@ interface TownMapProps {
   agentNameMap: Record<string, string>;
   onLocationClick?: (locationId: string) => void;
   onAgentClick?: (agentId: string) => void;
+  highlightedLocationId?: string | null;
 }
 
-// 地点类型对应的图标和颜色
-const LOCATION_STYLES: Record<string, { icon: string; color: string; bgColor: string }> = {
-  cafe: { icon: "☕", color: "#f59e0b", bgColor: "#fef3c7" },
-  plaza: { icon: "🌳", color: "#0ea5e9", bgColor: "#e0f2fe" },
-  park: { icon: "🌲", color: "#10b981", bgColor: "#d1fae5" },
-  shop: { icon: "🏪", color: "#8b5cf6", bgColor: "#ede9fe" },
-  home: { icon: "🏠", color: "#ec4899", bgColor: "#fce7f3" },
-  default: { icon: "📍", color: "#6b7280", bgColor: "#f3f4f6" },
+const AGENT_COLORS = ["#fbbf24", "#60a5fa", "#a78bfa", "#f472b6", "#34d399", "#fb923c"];
+const SVG_W = 700;
+const SVG_H = 440;
+const PADDING = 88;
+const VIEWBOX_MIN_WIDTH = 300;
+
+type ViewBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
-export function TownMap({ world, agentNameMap, onLocationClick, onAgentClick }: TownMapProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  
-  // 准备数据
-  const { nodes, links, bounds } = useMemo(() => {
-    const locations = world.locations;
-    
-    // 计算边界
-    const xExtent = d3.extent(locations, (d: { x: number }) => d.x) as [number, number];
-    const yExtent = d3.extent(locations, (d: { y: number }) => d.y) as [number, number];
-    const padding = 100;
-    
-    const bounds = {
-      minX: (xExtent[0] || 0) - padding,
-      maxX: (xExtent[1] || 0) + padding,
-      minY: (yExtent[0] || 0) - padding,
-      maxY: (yExtent[1] || 0) + padding,
-    };
-    
-    // 创建节点（地点）
-    const nodes: LocationNode[] = locations.map(loc => ({
-      id: loc.id,
-      name: loc.name,
-      type: loc.location_type,
-      x: loc.x,
-      y: loc.y,
-      capacity: loc.capacity,
-      occupantCount: loc.occupants.length,
-      occupants: loc.occupants,
-    }));
-    
-    // 创建连接（基于距离，连接最近的3个地点）
-    const links: LocationLink[] = [];
-    for (let i = 0; i < nodes.length; i++) {
-      const distances = nodes
-        .filter((_, j) => j !== i)
-        .map(n => ({
-          id: n.id,
-          distance: Math.sqrt(
-            Math.pow(nodes[i].x - n.x, 2) + Math.pow(nodes[i].y - n.y, 2)
-          ),
-        }))
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, 3);
-      
-      distances.forEach(d => {
-        if (!links.find(l => 
-          (l.source === nodes[i].id && l.target === d.id) ||
-          (l.source === d.id && l.target === nodes[i].id)
-        )) {
-          links.push({
-            source: nodes[i].id,
-            target: d.id,
-            distance: d.distance,
-          });
-        }
-      });
-    }
-    
-    return { nodes, links, bounds };
-  }, [world]);
+const LOCATION_STYLES: Record<string, { icon: string; color: string; bgColor: string }> = {
+  cafe: { icon: "☕", color: "#d97706", bgColor: "#fef3c7" },
+  plaza: { icon: "🌳", color: "#0284c7", bgColor: "#e0f2fe" },
+  park: { icon: "🌲", color: "#059669", bgColor: "#d1fae5" },
+  shop: { icon: "🏪", color: "#7c3aed", bgColor: "#ede9fe" },
+  home: { icon: "🏠", color: "#db2777", bgColor: "#fce7f3" },
+  default: { icon: "📍", color: "#64748b", bgColor: "#f8fafc" },
+};
 
-  useEffect(() => {
-    if (!svgRef.current || nodes.length === 0) return;
+function agentColor(agentId: string): string {
+  let hash = 0;
+  for (let index = 0; index < agentId.length; index++) {
+    hash = agentId.charCodeAt(index) + ((hash << 5) - hash);
+  }
+  return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length];
+}
 
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
+function scaleCoordinate(value: number, min: number, max: number, size: number) {
+  if (min === max) {
+    return size / 2;
+  }
 
-    const width = svgRef.current.clientWidth;
-    const height = 400;
-    
-    // 设置视图框
-    const viewBoxWidth = bounds.maxX - bounds.minX;
-    const viewBoxHeight = bounds.maxY - bounds.minY;
-    svg.attr("viewBox", `${bounds.minX} ${bounds.minY} ${viewBoxWidth} ${viewBoxHeight}`);
+  return PADDING + ((value - min) / (max - min)) * (size - PADDING * 2);
+}
 
-    // 创建缩放行为
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.5, 3])
-      .on("zoom", (event) => {
-        g.attr("transform", event.transform);
-      });
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
 
-    svg.call(zoom);
+function clampViewBox(next: ViewBox): ViewBox {
+  const width = clamp(next.width, VIEWBOX_MIN_WIDTH, SVG_W);
+  const height = (width / SVG_W) * SVG_H;
+  const x = clamp(next.x, 0, SVG_W - width);
+  const y = clamp(next.y, 0, SVG_H - height);
 
-    // 主图形组
-    const g = svg.append("g");
+  return { x, y, width, height };
+}
 
-    // 定义渐变和滤镜
-    const defs = svg.append("defs");
-    
-    // 发光滤镜
-    const filter = defs.append("filter")
-      .attr("id", "glow")
-      .attr("x", "-50%")
-      .attr("y", "-50%")
-      .attr("width", "200%")
-      .attr("height", "200%");
-    
-    filter.append("feGaussianBlur")
-      .attr("stdDeviation", "3")
-      .attr("result", "coloredBlur");
-    
-    const feMerge = filter.append("feMerge");
-    feMerge.append("feMergeNode").attr("in", "coloredBlur");
-    feMerge.append("feMergeNode").attr("in", "SourceGraphic");
+function buildMapData(world: WorldSnapshot) {
+  const rawNodes: LocationNode[] = world.locations.map((location) => ({
+    id: location.id,
+    name: location.name,
+    type: location.location_type,
+    x: location.x,
+    y: location.y,
+    capacity: location.capacity,
+    occupantCount: location.occupants.length,
+    occupants: location.occupants,
+  }));
 
-    // 绘制连接线
-    g.selectAll(".link")
-      .data(links)
-      .enter()
-      .append("line")
-      .attr("class", "link")
-      .attr("x1", d => nodes.find(n => n.id === d.source)?.x || 0)
-      .attr("y1", d => nodes.find(n => n.id === d.source)?.y || 0)
-      .attr("x2", d => nodes.find(n => n.id === d.target)?.x || 0)
-      .attr("y2", d => nodes.find(n => n.id === d.target)?.y || 0)
-      .attr("stroke", "#cbd5e1")
-      .attr("stroke-width", 2)
-      .attr("stroke-dasharray", "5,5")
-      .attr("opacity", 0.6);
+  const xValues = rawNodes.map((node) => node.x);
+  const yValues = rawNodes.map((node) => node.y);
+  const minX = xValues.length > 0 ? Math.min(...xValues) : 0;
+  const maxX = xValues.length > 0 ? Math.max(...xValues) : 1;
+  const minY = yValues.length > 0 ? Math.min(...yValues) : 0;
+  const maxY = yValues.length > 0 ? Math.max(...yValues) : 1;
 
-    // 绘制路径（行走路线）
-    const moveEvents = world.recent_events.filter(e => e.event_type === "move");
-    moveEvents.forEach((event, idx) => {
-      const fromLoc = nodes.find(n => n.id === event.location_id);
-      const toLoc = nodes.find(n => n.id === event.payload.to_location_id);
-      
-      if (fromLoc && toLoc) {
-        // 绘制移动轨迹
-        g.append("path")
-          .attr("d", d3.line()([[fromLoc.x, fromLoc.y], [toLoc.x, toLoc.y]]))
-          .attr("stroke", "#10b981")
-          .attr("stroke-width", 3)
-          .attr("fill", "none")
-          .attr("opacity", 0)
-          .attr("stroke-linecap", "round")
-          .transition()
-          .delay(idx * 100)
-          .duration(1000)
-          .attr("opacity", 0.4)
-          .transition()
-          .duration(2000)
-          .attr("opacity", 0);
+  const nodes: PositionedLocationNode[] = rawNodes.map((node) => ({
+    ...node,
+    svgX: scaleCoordinate(node.x, minX, maxX, SVG_W),
+    svgY: scaleCoordinate(node.y, minY, maxY, SVG_H),
+  }));
+
+  const links: LocationLink[] = [];
+  const maxNeighbors = Math.min(2, Math.max(0, nodes.length - 1));
+
+  for (let index = 0; index < nodes.length; index++) {
+    const source = nodes[index];
+    const nearest = nodes
+      .filter((_, otherIndex) => otherIndex !== index)
+      .map((target) => ({
+        id: target.id,
+        distance: Math.hypot(source.svgX - target.svgX, source.svgY - target.svgY),
+      }))
+      .sort((left, right) => left.distance - right.distance)
+      .slice(0, maxNeighbors);
+
+    for (const candidate of nearest) {
+      const exists = links.some(
+        (link) =>
+          (link.source === source.id && link.target === candidate.id) ||
+          (link.source === candidate.id && link.target === source.id),
+      );
+      if (!exists) {
+        links.push({ source: source.id, target: candidate.id });
       }
+    }
+  }
+
+  const movePaths: MovePath[] = world.recent_events
+    .filter((event) => event.event_type === "move" && event.location_id)
+    .map((event) => {
+      const toLocationId =
+        typeof event.payload.to_location_id === "string" ? event.payload.to_location_id : undefined;
+      if (!toLocationId || !event.location_id) {
+        return null;
+      }
+
+      const fromLocation = nodes.find((node) => node.id === event.location_id);
+      const toLocation = nodes.find((node) => node.id === toLocationId);
+      if (!fromLocation || !toLocation) {
+        return null;
+      }
+
+      return {
+        id: event.id,
+        fromX: fromLocation.svgX,
+        fromY: fromLocation.svgY,
+        toX: toLocation.svgX,
+        toY: toLocation.svgY,
+      };
+    })
+    .filter((path): path is MovePath => path !== null)
+    .slice(0, 4);
+
+  return { nodes, links, movePaths };
+}
+
+export function TownMap({
+  world,
+  agentNameMap,
+  onLocationClick,
+  onAgentClick,
+  highlightedLocationId,
+}: TownMapProps) {
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
+  const [viewBox, setViewBox] = useState<ViewBox>({ x: 0, y: 0, width: SVG_W, height: SVG_H });
+  const dragStateRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+
+  const { nodes, links, movePaths } = useMemo(() => buildMapData(world), [world]);
+
+  const linkCoordinates = links
+    .map((link) => {
+      const source = nodes.find((node) => node.id === link.source);
+      const target = nodes.find((node) => node.id === link.target);
+      if (!source || !target) {
+        return null;
+      }
+      return { ...link, source, target };
+    })
+    .filter(
+      (
+        link,
+      ): link is {
+        source: PositionedLocationNode;
+        target: PositionedLocationNode;
+      } & LocationLink => link !== null,
+    );
+
+  const setMapSummary = (label: string | null) => {
+    setHoveredLabel(label);
+  };
+
+  const zoomMap = (factor: number, focusX = viewBox.x + viewBox.width / 2, focusY = viewBox.y + viewBox.height / 2) => {
+    setViewBox((current) => {
+      const nextWidth = current.width * factor;
+      const nextHeight = (nextWidth / SVG_W) * SVG_H;
+      const ratioX = (focusX - current.x) / current.width;
+      const ratioY = (focusY - current.y) / current.height;
+      const nextX = focusX - nextWidth * ratioX;
+      const nextY = focusY - nextHeight * ratioY;
+      return clampViewBox({ x: nextX, y: nextY, width: nextWidth, height: nextHeight });
     });
+  };
 
-    // 绘制地点节点组
-    const locationGroups = g.selectAll(".location")
-      .data(nodes)
-      .enter()
-      .append("g")
-      .attr("class", "location")
-      .attr("transform", d => `translate(${d.x}, ${d.y})`)
-      .style("cursor", "pointer")
-      .on("click", (_, d) => onLocationClick?.(d.id));
+  const resetView = () => {
+    setViewBox({ x: 0, y: 0, width: SVG_W, height: SVG_H });
+  };
 
-    // 地点外圈（容量指示）
-    locationGroups
-      .append("circle")
-      .attr("r", d => 30 + d.capacity * 3)
-      .attr("fill", d => {
-        const style = LOCATION_STYLES[d.type] || LOCATION_STYLES.default;
-        return style.bgColor;
-      })
-      .attr("stroke", d => {
-        const style = LOCATION_STYLES[d.type] || LOCATION_STYLES.default;
-        return style.color;
-      })
-      .attr("stroke-width", 2)
-      .attr("opacity", 0.3);
+  const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
+    const target = event.target as Element;
+    if (target.closest("[data-map-interactive='true']")) {
+      return;
+    }
 
-    // 地点主圆
-    locationGroups
-      .append("circle")
-      .attr("r", 25)
-      .attr("fill", "white")
-      .attr("stroke", d => {
-        const style = LOCATION_STYLES[d.type] || LOCATION_STYLES.default;
-        return style.color;
-      })
-      .attr("stroke-width", 3)
-      .style("filter", "url(#glow)");
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      originX: viewBox.x,
+      originY: viewBox.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
 
-    // 地点图标
-    locationGroups
-      .append("text")
-      .attr("text-anchor", "middle")
-      .attr("dy", "0.35em")
-      .attr("font-size", "20")
-      .text(d => {
-        const style = LOCATION_STYLES[d.type] || LOCATION_STYLES.default;
-        return style.icon;
-      });
+  const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
 
-    // 地点名称
-    locationGroups
-      .append("text")
-      .attr("text-anchor", "middle")
-      .attr("dy", 45)
-      .attr("font-size", "12")
-      .attr("font-weight", "600")
-      .attr("fill", "#374151")
-      .text(d => d.name);
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return;
+    }
 
-    // 人数指示器
-    locationGroups
-      .filter(d => d.occupantCount > 0)
-      .append("circle")
-      .attr("cx", 18)
-      .attr("cy", -18)
-      .attr("r", 12)
-      .attr("fill", "#ef4444")
-      .attr("stroke", "white")
-      .attr("stroke-width", 2);
+    const deltaX = ((event.clientX - dragState.startClientX) / rect.width) * viewBox.width;
+    const deltaY = ((event.clientY - dragState.startClientY) / rect.height) * viewBox.height;
 
-    locationGroups
-      .filter(d => d.occupantCount > 0)
-      .append("text")
-      .attr("x", 18)
-      .attr("y", -18)
-      .attr("text-anchor", "middle")
-      .attr("dy", "0.35em")
-      .attr("font-size", "10")
-      .attr("font-weight", "bold")
-      .attr("fill", "white")
-      .text(d => d.occupantCount);
+    setViewBox(clampViewBox({ x: dragState.originX - deltaX, y: dragState.originY - deltaY, width: viewBox.width, height: viewBox.height }));
+  };
 
-    // 绘制居民点 - 放置在地点圆圈外部，避免重叠
-    nodes.forEach(node => {
-      node.occupants.forEach((agent, idx) => {
-        // 计算地点外圈半径
-        const locationOuterRadius = 35 + node.capacity * 3 + 15; // 外圈 + 间距
-        const angle = (idx / Math.max(node.occupants.length, 1)) * 2 * Math.PI - Math.PI / 2;
-        const x = node.x + Math.cos(angle) * locationOuterRadius;
-        const y = node.y + Math.sin(angle) * locationOuterRadius;
+  const handlePointerEnd = (event: PointerEvent<SVGSVGElement>) => {
+    if (dragStateRef.current?.pointerId === event.pointerId) {
+      dragStateRef.current = null;
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
 
-        const agentGroup = g.append("g")
-          .attr("class", "agent")
-          .attr("transform", `translate(${x}, ${y})`)
-          .style("cursor", "pointer")
-          .on("click", (e) => {
-            e.stopPropagation();
-            onAgentClick?.(agent.id);
-          });
+  const handleWheel = (event: WheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
 
-        // 居民圆圈
-        agentGroup
-          .append("circle")
-          .attr("r", 14)
-          .attr("fill", () => {
-            const colors = ["#fbbf24", "#60a5fa", "#a78bfa", "#f472b6", "#34d399"];
-            return colors[idx % colors.length];
-          })
-          .attr("stroke", "white")
-          .attr("stroke-width", 3)
-          .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.1))");
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return;
+    }
 
-        // 居民名字首字母
-        agentGroup
-          .append("text")
-          .attr("text-anchor", "middle")
-          .attr("dy", "0.35em")
-          .attr("font-size", "10")
-          .attr("font-weight", "bold")
-          .attr("fill", "white")
-          .text(agent.name.charAt(0).toUpperCase());
-
-        // 悬停提示（简单实现）
-        agentGroup
-          .append("title")
-          .text(agent.name);
-      });
-    });
-
-  }, [nodes, links, bounds, world.recent_events, onLocationClick, onAgentClick]);
+    const pointerX = ((event.clientX - rect.left) / rect.width) * viewBox.width + viewBox.x;
+    const pointerY = ((event.clientY - rect.top) / rect.height) * viewBox.height + viewBox.y;
+    zoomMap(event.deltaY > 0 ? 1.12 : 0.88, pointerX, pointerY);
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm"
+      transition={{ duration: 0.45 }}
+      className="flex h-full min-h-[460px] flex-col rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm"
     >
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs uppercase tracking-[0.22em] text-moss">小镇地图</div>
-        <div className="flex gap-2 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span className="flex items-center gap-1">
             <span className="h-2 w-2 rounded-full bg-amber-500" />
             咖啡馆
@@ -342,16 +308,263 @@ export function TownMap({ world, agentNameMap, onLocationClick, onAgentClick }: 
             <span className="h-2 w-2 rounded-full bg-violet-500" />
             商店
           </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-pink-500" />
+            住宅
+          </span>
+          <button
+            type="button"
+            onClick={() => zoomMap(0.85)}
+            className="rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-600 transition hover:border-moss hover:text-moss"
+          >
+            放大
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomMap(1.15)}
+            className="rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-600 transition hover:border-moss hover:text-moss"
+          >
+            缩小
+          </button>
+          <button
+            type="button"
+            onClick={resetView}
+            className="rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-600 transition hover:border-moss hover:text-moss"
+          >
+            重置
+          </button>
         </div>
       </div>
-      <svg
-        ref={svgRef}
-        className="w-full rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100"
-        style={{ height: 400 }}
-      />
-      <p className="mt-2 text-xs text-slate-400">
-        点击地点查看详情，点击居民查看个人信息。绿色线条表示最近的移动路径。
-      </p>
+      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(226,232,240,0.9)_55%,_rgba(220,252,231,0.5))]">
+        <svg
+          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+          className="h-full min-h-[420px] w-full touch-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+          onWheel={handleWheel}
+        >
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(148,163,184,0.12)" strokeWidth="1" />
+            </pattern>
+            <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="rgba(15,23,42,0.12)" />
+            </filter>
+          </defs>
+
+          <rect width={SVG_W} height={SVG_H} fill="url(#grid)" />
+          <path
+            d="M 40 315 C 180 245, 270 255, 385 210 S 590 150, 670 190"
+            fill="none"
+            stroke="rgba(148,163,184,0.3)"
+            strokeWidth="24"
+            strokeLinecap="round"
+          />
+          <path
+            d="M 120 90 C 245 110, 320 155, 485 110 S 620 90, 660 125"
+            fill="none"
+            stroke="rgba(255,255,255,0.7)"
+            strokeWidth="12"
+            strokeLinecap="round"
+          />
+
+          {linkCoordinates.map((link) => (
+            <motion.line
+              key={`${link.source.id}-${link.target.id}`}
+              x1={link.source.svgX}
+              y1={link.source.svgY}
+              x2={link.target.svgX}
+              y2={link.target.svgY}
+              stroke="rgba(148,163,184,0.45)"
+              strokeWidth="2"
+              strokeDasharray="7 8"
+              initial={{ pathLength: 0, opacity: 0 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ duration: 0.6 }}
+            />
+          ))}
+
+          <AnimatePresence>
+            {movePaths.map((path, index) => (
+              <motion.path
+                key={path.id}
+                d={`M ${path.fromX} ${path.fromY} Q ${(path.fromX + path.toX) / 2} ${(path.fromY + path.toY) / 2 - 22} ${path.toX} ${path.toY}`}
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="4"
+                strokeLinecap="round"
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: [0, 0.55, 0] }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 2.2, delay: index * 0.1 }}
+              />
+            ))}
+          </AnimatePresence>
+
+          {nodes.map((node) => {
+            const style = LOCATION_STYLES[node.type] ?? LOCATION_STYLES.default;
+            const isHighlighted = node.id === highlightedLocationId;
+            const outerRadius = 32 + node.capacity * 2.5;
+
+            return (
+              <motion.g
+                key={node.id}
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: "spring", stiffness: 260, damping: 24 }}
+                data-map-interactive="true"
+                role="button"
+                tabIndex={0}
+                aria-label={`${node.name}，当前 ${node.occupantCount} / ${node.capacity} 人`}
+                onMouseEnter={() => setMapSummary(`${node.name} · ${node.occupantCount}/${node.capacity}`)}
+                onMouseLeave={() => setMapSummary(null)}
+                onFocus={() => setMapSummary(`${node.name} · ${node.occupantCount}/${node.capacity}`)}
+                onBlur={() => setMapSummary(null)}
+                onClick={() => {
+                  setMapSummary(`${node.name} · ${node.occupantCount}/${node.capacity}`);
+                  onLocationClick?.(node.id);
+                }}
+                onKeyDown={(event: KeyboardEvent<SVGGElement>) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setMapSummary(`${node.name} · ${node.occupantCount}/${node.capacity}`);
+                    onLocationClick?.(node.id);
+                  }
+                }}
+                className="cursor-pointer"
+              >
+                <title>{`${node.name} · ${node.occupantCount}/${node.capacity}`}</title>
+                <motion.circle
+                  cx={node.svgX}
+                  cy={node.svgY}
+                  r={outerRadius}
+                  fill={style.bgColor}
+                  stroke={style.color}
+                  strokeWidth={isHighlighted ? 4 : 2}
+                  opacity={isHighlighted ? 0.5 : 0.3}
+                  animate={isHighlighted ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+                  style={{ transformOrigin: `${node.svgX}px ${node.svgY}px` }}
+                  transition={isHighlighted ? { duration: 1.8, repeat: Infinity } : { duration: 0.2 }}
+                />
+                <circle
+                  cx={node.svgX}
+                  cy={node.svgY}
+                  r={28}
+                  fill="rgba(255,255,255,0.96)"
+                  stroke={style.color}
+                  strokeWidth={isHighlighted ? 5 : 3}
+                  filter="url(#softShadow)"
+                />
+                <text x={node.svgX} y={node.svgY + 8} textAnchor="middle" fontSize="24">
+                  {style.icon}
+                </text>
+                <text
+                  x={node.svgX}
+                  y={node.svgY + outerRadius + 22}
+                  textAnchor="middle"
+                  fontSize="13"
+                  fontWeight="700"
+                  fill="#334155"
+                >
+                  {node.name}
+                </text>
+
+                {node.occupantCount > 0 ? (
+                  <>
+                    <circle
+                      cx={node.svgX + 22}
+                      cy={node.svgY - 20}
+                      r={12}
+                      fill="#ef4444"
+                      stroke="white"
+                      strokeWidth={3}
+                    />
+                    <text
+                      x={node.svgX + 22}
+                      y={node.svgY - 16}
+                      textAnchor="middle"
+                      fontSize="10"
+                      fontWeight="700"
+                      fill="white"
+                    >
+                      {node.occupantCount}
+                    </text>
+                  </>
+                ) : null}
+
+                {node.occupants.map((agent, index) => {
+                  const ringRadius = outerRadius + 22;
+                  const angle =
+                    (index / Math.max(node.occupants.length, 1)) * Math.PI * 2 - Math.PI / 2;
+                  const agentX = node.svgX + Math.cos(angle) * ringRadius;
+                  const agentY = node.svgY + Math.sin(angle) * ringRadius;
+                  const fill = agentColor(agent.id);
+                  const label = agentNameMap[agent.id] ?? agent.name;
+
+                  return (
+                    <motion.g
+                      key={agent.id}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ type: "spring", stiffness: 320, damping: 22, delay: index * 0.03 }}
+                      data-map-interactive="true"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${label}，当前目标 ${agent.current_goal ?? "空闲中"}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setMapSummary(`${label} · ${agent.current_goal ?? "空闲中"}`);
+                        onAgentClick?.(agent.id);
+                      }}
+                      onKeyDown={(event: KeyboardEvent<SVGGElement>) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setMapSummary(`${label} · ${agent.current_goal ?? "空闲中"}`);
+                          onAgentClick?.(agent.id);
+                        }
+                      }}
+                      onMouseEnter={() => setMapSummary(`${label} · ${agent.current_goal ?? "空闲中"}`)}
+                      onMouseLeave={() => setMapSummary(null)}
+                      onFocus={() => setMapSummary(`${label} · ${agent.current_goal ?? "空闲中"}`)}
+                      onBlur={() => setMapSummary(null)}
+                      className="cursor-pointer"
+                    >
+                      <title>{`${label} · ${agent.current_goal ?? "空闲中"}`}</title>
+                      <circle
+                        cx={agentX}
+                        cy={agentY}
+                        r={16}
+                        fill="rgba(255,255,255,0.92)"
+                        stroke={fill}
+                        strokeWidth={4}
+                        filter="url(#softShadow)"
+                      />
+                      <circle cx={agentX} cy={agentY} r={11} fill={fill} opacity={0.9} />
+                      <text
+                        x={agentX}
+                        y={agentY + 4}
+                        textAnchor="middle"
+                        fontSize="10"
+                        fontWeight="700"
+                        fill="white"
+                      >
+                        {label.charAt(0).toUpperCase()}
+                      </text>
+                    </motion.g>
+                  );
+                })}
+              </motion.g>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-400">
+        <p>点击地点查看详情，点击居民进入个人页。拖拽平移，滚轮或按钮缩放，绿色弧线表示最近移动。</p>
+        <p className="truncate text-right text-slate-500">{hoveredLabel ?? "悬停、聚焦或点击后查看地点与居民摘要"}</p>
+      </div>
     </motion.div>
   );
 }

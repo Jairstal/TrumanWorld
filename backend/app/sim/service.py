@@ -111,7 +111,7 @@ class SimulationService:
             current_tick = run.current_tick
 
             # Load locations and agents
-            location_repo = AgentRepository(read_session)
+            location_repo = LocationRepository(read_session)
             agent_repo = AgentRepository(read_session)
             locations = await location_repo.list_for_run(run_id)
             agents = await agent_repo.list_for_run(run_id)
@@ -171,7 +171,9 @@ class SimulationService:
         result = runner.tick(intents)
 
         # Phase 3: Persist results with a fresh session
-        async with AsyncSessionType(engine) as write_session:
+        async with AsyncSessionType(
+            engine, expire_on_commit=False
+        ) as write_session:
             await self._persist_results(write_session, run_id, result, world, current_tick + 1)
 
         return result
