@@ -12,6 +12,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 from claude_agent_sdk.types import McpSdkServerConfig
 from pydantic import BaseModel, Field, ValidationError
 
+from app.agent.system_prompt import build_system_prompt
 from app.infra.settings import Settings
 
 if TYPE_CHECKING:
@@ -153,6 +154,7 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
             model=self.settings.agent_model,
             cwd=str(self.settings.project_root),
             env=env,
+            system_prompt=build_system_prompt(),
         )
         
         # Add MCP memory server if runtime context provides database engine

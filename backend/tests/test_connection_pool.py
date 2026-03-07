@@ -9,7 +9,8 @@ os.environ.pop("CLAUDECODE", None)
 pytest.importorskip("claude_agent_sdk")
 
 from app.agent.connection_pool import AgentConnectionPool, PooledClient
-from app.infra.settings import get_settings
+from app.agent.system_prompt import build_system_prompt
+from app.infra.settings import Settings, get_settings
 
 
 @pytest.fixture
@@ -47,3 +48,12 @@ async def test_pool_lru_eviction(connection_pool):
     # Verify eviction would be called when needed
     # Note: This is a simplified test
     assert connection_pool.size == 5
+
+
+def test_build_base_options_includes_system_prompt(tmp_path):
+    settings = Settings(project_root=tmp_path)
+    pool = AgentConnectionPool(settings, max_connections=1)
+
+    options = pool._build_base_options()
+
+    assert options.system_prompt == build_system_prompt()

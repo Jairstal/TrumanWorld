@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
+from app.agent.system_prompt import build_system_prompt
 from app.infra.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,7 @@ class AgentConnectionPool:
             model=self.settings.agent_model,
             cwd=str(self.settings.project_root),
             env=env,
+            system_prompt=build_system_prompt(),
             permission_mode="bypassPermissions",
         )
 

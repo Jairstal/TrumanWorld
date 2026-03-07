@@ -35,7 +35,7 @@ class PromptLoader:
             "- JSON 仅可包含字段：`action_type`、`target_location_id`、`target_agent_id`、`message`、`payload`",
             "- `action_type` 必须来自允许动作集合",
             "- 当 `action_type=move` 时，应尽量提供 `target_location_id`",
-            "- 当 `action_type=talk` 时，必须提供 `target_agent_id` 与一句可展示的 `message`",
+            "- 当 `action_type=talk` 时，必须提供 `target_agent_id` 与 `message`（30-200 字的自然对话）",
             "- 如果信息不足，优先返回 `rest` 或 `work`，不要编造不存在的地点和人物",
             "",
             "# 运行上下文",

@@ -211,6 +211,9 @@ TrumanWorld 则是：
 agent/
   registry.py
   config_loader.py
+  prompts/
+    system.md
+  system_prompt.py
   prompt_loader.py
   runtime.py
   context_builder.py
@@ -235,7 +238,28 @@ agent/
 
 ### `prompt_loader.py`
 
-负责加载 `prompt.md`，并与世界上下文、记忆上下文拼装。
+负责加载 `agents/<id>/prompt.md`，并与世界上下文、记忆上下文拼装。
+
+### `prompts/system.md`
+
+负责维护项目级 system prompt，包括：
+
+- 统一语言要求
+- 世界规则边界
+- 输出边界
+- 全局行为约束
+
+这个文件不承载具体角色人格。
+
+### `system_prompt.py`
+
+负责加载 `prompts/system.md`，供 Claude Agent SDK 的 `system_prompt` 选项统一注入。
+
+分层约定：
+
+- `prompts/system.md` 负责全局规则
+- `agents/<id>/prompt.md` 负责角色身份与风格
+- `prompt_loader.py` 负责运行时上下文拼装
 
 ### `runtime.py`
 

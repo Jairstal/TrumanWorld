@@ -11,6 +11,7 @@ from app.agent.reactor import Reactor
 from app.agent.reflector import Reflector
 from app.agent.registry import AgentRegistry
 from app.agent.runtime import AgentRuntime, RuntimeInvocation
+from app.agent.system_prompt import build_system_prompt
 from app.infra.settings import get_settings
 
 
@@ -91,7 +92,7 @@ def test_decision_prompt_requires_message_field_for_talk(runtime: AgentRuntime):
         in invocation.prompt
     )
     assert (
-        "当 `action_type=talk` 时，必须提供 `target_agent_id` 与一句可展示的 `message`"
+        "当 `action_type=talk` 时，必须提供 `target_agent_id` 与 `message`（30-200 字的自然对话）"
         in invocation.prompt
     )
 
@@ -237,6 +238,24 @@ def test_runtime_selects_claude_provider_from_env(tmp_path: Path, monkeypatch: p
     assert isinstance(runtime.decision_provider, ClaudeSDKDecisionProvider)
 
     get_settings.cache_clear()
+
+
+def test_claude_provider_builds_options_with_system_prompt(tmp_path: Path):
+    settings = get_settings()
+    provider = ClaudeSDKDecisionProvider(settings)
+    invocation = RuntimeInvocation(
+        agent_id="demo_agent",
+        task="reactor",
+        prompt="Base prompt",
+        context={},
+        max_turns=2,
+        max_budget_usd=0.2,
+        allowed_actions=["move", "talk", "work", "rest"],
+    )
+
+    options = provider._build_sdk_options(invocation)
+
+    assert options.system_prompt == build_system_prompt()
 
 
 def test_runtime_selects_claude_provider_from_legacy_env(

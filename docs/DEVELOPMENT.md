@@ -152,7 +152,12 @@ truman-world/
 ├── agents/               # Agent 配置
 │   └── <agent_id>/
 │       ├── agent.yml    # 配置
-│       └── prompt.md    # 提示词
+│       └── prompt.md    # 角色提示词
+├── backend/
+│   └── app/
+│       └── agent/
+│           └── prompts/
+│               └── system.md  # 全局 system prompt
 ├── docs/                 # 文档
 └── CLAUDE.md            # Claude Code 配置
 ```
@@ -321,6 +326,11 @@ model:
 - 遵守教师职业习惯
 - ...
 ```
+
+说明：
+
+- `agents/<id>/prompt.md` 只写角色身份、行为风格和个体差异
+- 全局规则（例如统一使用中文、世界约束、输出边界）统一放在 `backend/app/agent/prompts/system.md`
 
 ---
 
