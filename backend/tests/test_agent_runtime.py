@@ -3,12 +3,13 @@ from pathlib import Path
 import pytest
 
 from app.agent.context_builder import ContextBuilder
-from app.agent.providers import AgentDecisionProvider, RuntimeDecision
+from app.agent.providers import AgentDecisionProvider, ClaudeSDKDecisionProvider, RuntimeDecision
 from app.agent.planner import Planner
 from app.agent.reactor import Reactor
 from app.agent.reflector import Reflector
 from app.agent.registry import AgentRegistry
 from app.agent.runtime import AgentRuntime
+from app.infra.settings import get_settings
 
 
 @pytest.fixture
@@ -147,3 +148,32 @@ async def test_runtime_decide_intent_uses_provider(tmp_path: Path):
     assert intent.action_type == "talk"
     assert intent.target_agent_id == "bob"
     assert intent.payload["intent_source"] == "reactor"
+
+
+def test_runtime_selects_claude_provider_from_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("TRUMANWORLD_AGENT_PROVIDER", "claude")
+    get_settings.cache_clear()
+
+    agent_dir = tmp_path / "demo_agent"
+    agent_dir.mkdir(parents=True)
+    (agent_dir / "agent.yml").write_text(
+        "\n".join(
+            [
+                "id: demo_agent",
+                "name: Demo Agent",
+                "occupation: resident",
+                "home: demo_home",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (agent_dir / "prompt.md").write_text("# Demo Agent\nBase prompt", encoding="utf-8")
+
+    runtime = AgentRuntime(
+        registry=AgentRegistry(tmp_path),
+        context_builder=ContextBuilder(),
+    )
+
+    assert isinstance(runtime.decision_provider, ClaudeSDKDecisionProvider)
+
+    get_settings.cache_clear()

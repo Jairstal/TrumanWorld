@@ -79,6 +79,8 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
         env = {}
         if self.settings.anthropic_api_key:
             env["ANTHROPIC_API_KEY"] = self.settings.anthropic_api_key
+        if self.settings.anthropic_base_url:
+            env["ANTHROPIC_BASE_URL"] = self.settings.anthropic_base_url
 
         options = ClaudeAgentOptions(
             max_turns=invocation.max_turns,

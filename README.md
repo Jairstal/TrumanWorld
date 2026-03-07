@@ -35,15 +35,28 @@ docs/        产品与架构文档
 
 ```bash
 cp .env.example .env
+cp frontend/.env.local.example frontend/.env.local
 make install
 ```
+
+说明：
+
+- 后端会读取仓库根目录的 `.env`
+- 前端 `Next.js` 会读取 `frontend/.env.local`
 
 如果要启用真实 Claude 决策层，在 `.env` 中至少配置：
 
 ```bash
 TRUMANWORLD_AGENT_PROVIDER=claude
 TRUMANWORLD_ANTHROPIC_API_KEY=your_key
+TRUMANWORLD_ANTHROPIC_BASE_URL=
 TRUMANWORLD_AGENT_MODEL=claude-sonnet-4-20250514
+```
+
+如果前端不走默认后端地址，在 `frontend/.env.local` 中配置：
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api
 ```
 
 ### 启动后端
