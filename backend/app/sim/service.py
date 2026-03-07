@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.providers import build_default_talk_message
 from app.agent.registry import AgentRegistry
 from app.agent.runtime import AgentRuntime
 from app.infra.settings import get_settings
@@ -602,20 +603,37 @@ class SimulationService:
         if event.event_type == "talk":
             target_agent_id = payload.get("target_agent_id", "someone")
             location_id = payload.get("location_id", "unknown")
+            message = payload.get("message", "")
+            
+            # 构建记忆内容，包含对话消息
+            if message:
+                content = f"Talked with {target_agent_id} at {location_id}: \"{message}\""
+                summary = f"Talked with {target_agent_id}: {message[:30]}{'...' if len(message) > 30 else ''}"
+            else:
+                content = f"Talked with {target_agent_id} at {location_id}."
+                summary = f"Talked with {target_agent_id}"
+            
             records = [
                 (
                     event.actor_agent_id,
-                    f"Talked with {target_agent_id} at {location_id}.",
-                    f"Talked with {target_agent_id}",
+                    content,
+                    summary,
                     event.target_agent_id,
                 )
             ]
             if event.target_agent_id:
+                # 为被交谈者也创建记忆，但内容不同
+                if message:
+                    target_content = f"Talked with {event.actor_agent_id} at {location_id}: they said \"{message}\""
+                    target_summary = f"Talked with {event.actor_agent_id}"
+                else:
+                    target_content = f"Talked with {event.actor_agent_id} at {location_id}."
+                    target_summary = f"Talked with {event.actor_agent_id}"
                 records.append(
                     (
                         event.target_agent_id,
-                        f"Talked with {event.actor_agent_id} at {location_id}.",
-                        f"Talked with {event.actor_agent_id}",
+                        target_content,
+                        target_summary,
                         event.actor_agent_id,
                     )
                 )
@@ -690,6 +708,7 @@ class SimulationService:
                 agent_id=agent_id,
                 action_type="talk",
                 target_agent_id=nearby_agent_id,
+                payload={"message": build_default_talk_message()},
             )
 
         if (

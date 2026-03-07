@@ -10,6 +10,7 @@ from app.agent.providers import (
     AgentDecisionProvider,
     ClaudeSDKDecisionProvider,
     HeuristicDecisionProvider,
+    build_default_talk_message,
 )
 from app.agent.prompt_loader import PromptLoader
 from app.agent.registry import AgentRegistry
@@ -136,6 +137,8 @@ class AgentRuntime:
         payload = dict(decision.payload)
         if decision.message:
             payload["message"] = decision.message
+        if decision.action_type == "talk" and not payload.get("message"):
+            payload["message"] = build_default_talk_message()
         return ActionIntent(
             agent_id=invocation.agent_id,
             action_type=decision.action_type,
@@ -177,6 +180,7 @@ class AgentRuntime:
                 agent_id=invocation.agent_id,
                 action_type="talk",
                 target_agent_id=str(nearby_agent_id),
+                payload={"message": build_default_talk_message()},
             )
 
         if (

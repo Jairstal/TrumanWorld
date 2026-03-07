@@ -5,7 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.db import get_db_session
 from app.infra.logging import get_logger
-from app.store.repositories import AgentRepository, RunRepository
+from app.store.repositories import (
+    AgentRepository,
+    LocationRepository,
+    RunRepository,
+)
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -55,6 +59,14 @@ async def get_agent(
     if agent is None or agent.run_id != str(run_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
 
+    # Build name maps for friendly display
+    all_agents = await repo.list_for_run(str(run_id))
+    agent_name_map = {a.id: a.name for a in all_agents}
+
+    location_repo = LocationRepository(session)
+    all_locations = await location_repo.list_for_run(str(run_id))
+    location_name_map = {loc.id: loc.name for loc in all_locations}
+
     memories = await repo.list_recent_memories(agent_id)
     recent_events = await repo.list_recent_events(str(run_id), agent_id)
     relationships = await repo.list_relationships(str(run_id), agent_id)
@@ -71,6 +83,20 @@ async def get_agent(
                 "id": event.id,
                 "tick_no": event.tick_no,
                 "event_type": event.event_type,
+                "actor_agent_id": event.actor_agent_id,
+                "actor_name": agent_name_map.get(event.actor_agent_id, event.actor_agent_id),
+                "target_agent_id": event.target_agent_id,
+                "target_name": (
+                    agent_name_map.get(event.target_agent_id, event.target_agent_id)
+                    if event.target_agent_id
+                    else None
+                ),
+                "location_id": event.location_id,
+                "location_name": (
+                    location_name_map.get(event.location_id, event.location_id)
+                    if event.location_id
+                    else None
+                ),
                 "payload": event.payload,
             }
             for event in recent_events
@@ -82,12 +108,21 @@ async def get_agent(
                 "summary": memory.summary,
                 "content": memory.content,
                 "importance": memory.importance,
+                "related_agent_id": memory.related_agent_id,
+                "related_agent_name": (
+                    agent_name_map.get(memory.related_agent_id, memory.related_agent_id)
+                    if memory.related_agent_id
+                    else None
+                ),
             }
             for memory in memories
         ],
         "relationships": [
             {
                 "other_agent_id": relation.other_agent_id,
+                "other_agent_name": agent_name_map.get(
+                    relation.other_agent_id, relation.other_agent_id
+                ),
                 "familiarity": relation.familiarity,
                 "trust": relation.trust,
                 "affinity": relation.affinity,

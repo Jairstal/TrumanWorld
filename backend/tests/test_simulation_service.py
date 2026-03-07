@@ -313,6 +313,56 @@ async def test_simulation_service_falls_back_when_runtime_provider_is_cancelled(
 
 
 @pytest.mark.asyncio
+async def test_simulation_service_fallback_talk_includes_message(db_session):
+    run = SimulationRun(
+        id="run-service-4c", name="service", status="running", current_tick=0, tick_minutes=5
+    )
+    cafe = Location(
+        id="loc-cafe-4c", run_id="run-service-4c", name="Cafe", location_type="cafe", capacity=4
+    )
+    alice = Agent(
+        id="alice-4c",
+        run_id="run-service-4c",
+        name="Alice",
+        occupation="resident",
+        home_location_id="loc-cafe-4c",
+        current_location_id="loc-cafe-4c",
+        current_goal="talk",
+        personality={},
+        profile={},
+        status={},
+        current_plan={},
+    )
+    bob = Agent(
+        id="bob-4c",
+        run_id="run-service-4c",
+        name="Bob",
+        occupation="resident",
+        home_location_id="loc-cafe-4c",
+        current_location_id="loc-cafe-4c",
+        personality={},
+        profile={},
+        status={},
+        current_plan={},
+    )
+
+    db_session.add_all([run, cafe, alice, bob])
+    await db_session.commit()
+
+    failing_runtime = SimulationService(db_session).agent_runtime
+    failing_runtime.decision_provider = FailingDecisionProvider()
+    service = SimulationService(db_session, agent_runtime=failing_runtime)
+
+    result = await service.run_tick("run-service-4c")
+
+    assert result.tick_no == 1
+    assert len(result.accepted) == 2
+    alice_talk = next(item for item in result.accepted if item.action_type == "talk")
+    assert alice_talk.event_payload["target_agent_id"] == "bob-4c"
+    assert alice_talk.event_payload["message"]
+
+
+@pytest.mark.asyncio
 async def test_simulation_service_updates_relationships_from_talk_events(db_session):
     run = SimulationRun(
         id="run-service-5", name="service", status="running", current_tick=0, tick_minutes=5

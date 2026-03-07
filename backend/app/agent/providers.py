@@ -50,6 +50,13 @@ class AgentDecisionProvider(ABC):
         raise NotImplementedError
 
 
+DEFAULT_TALK_MESSAGE = "你好，最近怎么样？"
+
+
+def build_default_talk_message() -> str:
+    return DEFAULT_TALK_MESSAGE
+
+
 class HeuristicDecisionProvider(AgentDecisionProvider):
     # 简单的问候语列表，用于启发式对话
     TALK_MESSAGES = [

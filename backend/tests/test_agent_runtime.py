@@ -80,6 +80,16 @@ def test_runtime_prepare_reactor(runtime: AgentRuntime):
     assert '"task": "reactor"' in invocation.prompt
 
 
+def test_decision_prompt_requires_message_field_for_talk(runtime: AgentRuntime):
+    invocation = runtime.prepare_reactor(
+        "demo_agent",
+        world={"current_goal": "talk", "nearby_agent_id": "bob"},
+    )
+
+    assert "JSON 仅可包含字段：`action_type`、`target_location_id`、`target_agent_id`、`message`、`payload`" in invocation.prompt
+    assert "当 `action_type=talk` 时，必须提供 `target_agent_id` 与一句可展示的 `message`" in invocation.prompt
+
+
 def test_runtime_prepare_reflector(runtime: AgentRuntime):
     invocation = runtime.prepare_reflector(
         "demo_agent",
@@ -109,6 +119,24 @@ def test_runtime_derive_intent_from_goal(runtime: AgentRuntime):
 
     assert intent.action_type == "move"
     assert intent.target_location_id == "park"
+
+
+def test_runtime_derive_talk_intent_includes_default_message(runtime: AgentRuntime):
+    invocation = runtime.prepare_reactor(
+        "demo_agent",
+        world={
+            "current_goal": "talk",
+            "current_location_id": "cafe",
+            "home_location_id": "home",
+            "nearby_agent_id": "bob",
+        },
+    )
+
+    intent = runtime.derive_intent(invocation)
+
+    assert intent.action_type == "talk"
+    assert intent.target_agent_id == "bob"
+    assert intent.payload["message"]
 
 
 def test_planner_reactor_reflector_wrap_runtime(runtime: AgentRuntime):
@@ -154,6 +182,26 @@ async def test_runtime_decide_intent_uses_provider(tmp_path: Path):
     assert intent.action_type == "talk"
     assert intent.target_agent_id == "bob"
     assert intent.payload["intent_source"] == "reactor"
+
+
+@pytest.mark.asyncio
+async def test_heuristic_provider_generates_message_for_talk(runtime: AgentRuntime):
+    invocation = runtime.prepare_reactor(
+        "demo_agent",
+        world={
+            "current_goal": "talk",
+            "current_location_id": "cafe",
+            "home_location_id": "home",
+            "nearby_agent_id": "bob",
+        },
+    )
+
+    intent = await runtime.decide_intent(invocation)
+
+    assert intent.action_type == "talk"
+    assert intent.target_agent_id == "bob"
+    assert isinstance(intent.payload.get("message"), str)
+    assert intent.payload["message"]
 
 
 def test_runtime_selects_claude_provider_from_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -250,6 +298,67 @@ async def test_claude_provider_returns_fallback_on_cancelled_error(monkeypatch: 
     # CancelledError should return a fallback decision, not raise
     result = await provider.decide(invocation)
     assert result.action_type == "rest"
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_runtime_decide_intent_adds_default_message_when_claude_omits_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("TRUMANWORLD_AGENT_PROVIDER", "claude")
+    get_settings.cache_clear()
+    monkeypatch.setattr(provider_module.shutil, "which", lambda _: "/usr/bin/claude")
+
+    async def fake_query(*args, **kwargs):
+        yield provider_module.ResultMessage(
+            subtype="result",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="session-1",
+            result='{"action_type":"talk","target_agent_id":"bob"}',
+        )
+
+    monkeypatch.setattr(provider_module, "query", fake_query)
+
+    agent_dir = tmp_path / "demo_agent"
+    agent_dir.mkdir(parents=True)
+    (agent_dir / "agent.yml").write_text(
+        "\n".join(
+            [
+                "id: demo_agent",
+                "name: Demo Agent",
+                "occupation: resident",
+                "home: demo_home",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (agent_dir / "prompt.md").write_text("# Demo Agent\nBase prompt", encoding="utf-8")
+
+    runtime = AgentRuntime(
+        registry=AgentRegistry(tmp_path),
+        context_builder=ContextBuilder(),
+        decision_provider=ClaudeSDKDecisionProvider(get_settings()),
+    )
+
+    invocation = runtime.prepare_reactor(
+        "demo_agent",
+        world={
+            "current_goal": "talk",
+            "current_location_id": "cafe",
+            "home_location_id": "home",
+            "nearby_agent_id": "bob",
+        },
+    )
+
+    result = await runtime.decide_intent(invocation)
+
+    assert result.action_type == "talk"
+    assert result.target_agent_id == "bob"
+    assert result.payload["message"]
 
     get_settings.cache_clear()
 
