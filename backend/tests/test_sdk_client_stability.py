@@ -347,8 +347,9 @@ async def test_long_running_client() -> dict[str, Any]:
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(
-    not os.getenv("TRUMANWORLD_ANTHROPIC_API_KEY") or os.getenv("TRUMANWORLD_ANTHROPIC_API_KEY") == "test-key",
-    reason="需要有效的 Anthropic API Key 才能运行"
+    not os.getenv("TRUMANWORLD_ANTHROPIC_API_KEY")
+    or os.getenv("TRUMANWORLD_ANTHROPIC_API_KEY") == "test-key",
+    reason="需要有效的 Anthropic API Key 才能运行",
 )
 async def test_query_latency():
     """测试 query() 的延迟"""
