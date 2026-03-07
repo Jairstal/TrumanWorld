@@ -263,12 +263,52 @@ export function WorldCanvas({ runId, initialData }: Props) {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-4">
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">操作提示</p>
-              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
-                <p>点击地图地点可聚焦右侧详情，快速查看该地点的居民和当前节奏。</p>
-                <p>点击地图居民头像可直接进入个人页，继续查看记忆、关系和近期行为。</p>
-                <p>当世界暂停时，自动轮询会停止，这时更适合逐帧排查行为链路。</p>
+            <div className="rounded-[28px] border border-slate-200 bg-white/75 p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">聚焦地点动态</p>
+                  <h2 className="mt-1 text-base font-semibold text-ink">
+                    {selectedLocation?.name ?? "—"} 近期事件
+                  </h2>
+                </div>
+                <div className="group relative">
+                  <button
+                    type="button"
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-400 shadow-sm transition hover:border-moss hover:text-moss"
+                    aria-label="操作提示"
+                  >
+                    !
+                  </button>
+                  <div className="pointer-events-none absolute bottom-9 right-0 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">操作提示</p>
+                    <ul className="space-y-2 text-xs leading-5 text-slate-600">
+                      <li className="flex gap-2"><span className="mt-0.5 text-moss">●</span>点击地图地点可聚焦右侧详情，快速查看该地点的居民和当前节奏。</li>
+                      <li className="flex gap-2"><span className="mt-0.5 text-moss">●</span>点击地图居民头像可直接进入个人页，继续查看记忆、关系和近期行为。</li>
+                      <li className="flex gap-2"><span className="mt-0.5 text-moss">●</span>当世界暂停时，自动轮询会停止，这时更适合逐帧排查行为链路。</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 space-y-2">
+                {selectedLocation
+                  ? world.recent_events
+                      .filter((e) => e.location_id === selectedLocation.id)
+                      .slice(0, 4)
+                      .map((e) => (
+                        <div key={e.id} className="flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2">
+                          <span className="mt-0.5 text-base leading-none">
+                            {e.event_type === "talk" ? "💬" : e.event_type === "move" ? "🚶" : e.event_type === "work" ? "⚒️" : "😴"}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs text-slate-700">{e.summary}</p>
+                            <p className="mt-0.5 text-[10px] text-slate-400">T{e.tick_no}</p>
+                          </div>
+                        </div>
+                      ))
+                  : null}
+                {selectedLocation && world.recent_events.filter((e) => e.location_id === selectedLocation.id).length === 0 && (
+                  <p className="text-xs text-slate-400">该地点暂无近期事件。</p>
+                )}
               </div>
             </div>
           </div>
@@ -329,12 +369,15 @@ export function WorldCanvas({ runId, initialData }: Props) {
 
             {selectedLocation ? (
               <>
-                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                  <span className={`rounded-full border px-2.5 py-1 ${locationTone(selectedLocation.location_type)}`}>
-                    容量 {selectedLocation.occupants.length} / {selectedLocation.capacity}
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                  <span className={`rounded-full border px-2.5 py-1 font-medium ${locationTone(selectedLocation.location_type)}`}>
+                    {selectedLocation.occupants.length} / {selectedLocation.capacity} 人
                   </span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                    地点 ID {selectedLocation.id}
+                  <span
+                    className="cursor-default rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono tracking-tight"
+                    title={selectedLocation.id}
+                  >
+                    #{selectedLocation.id.slice(0, 8)}
                   </span>
                 </div>
 
@@ -381,20 +424,16 @@ export function WorldCanvas({ runId, initialData }: Props) {
                   </p>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
-                {/* 放大按钮 */}
-                <button
-                  type="button"
-                  onClick={() => setIsStreamExpanded(true)}
-                  className="flex items-center gap-1.5 rounded-full bg-moss px-3 py-1.5 text-xs font-medium text-white transition hover:bg-moss/90"
-                  title="放大查看情报流"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                  </svg>
-                  放大
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsStreamExpanded(true)}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-moss hover:text-moss"
+                title="放大查看情报流"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+              </button>
             </div>
             {/* 简化的筛选器 */}
             <div className="mb-3 flex flex-wrap gap-1">

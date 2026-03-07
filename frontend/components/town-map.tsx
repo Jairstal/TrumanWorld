@@ -338,7 +338,7 @@ export function TownMap({
           </button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden rounded-[24px] border border-white/70 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(226,232,240,0.9)_55%,_rgba(220,252,231,0.5))]">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-[24px] border border-white/70 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(226,232,240,0.9)_55%,_rgba(220,252,231,0.5))]">
         <svg
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
           className="h-full min-h-[420px] w-full touch-none"
@@ -563,10 +563,10 @@ export function TownMap({
             );
           })}
         </svg>
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-400">
-        <p>点击地点查看详情，点击居民进入个人页。拖拽平移，滚轮或按钮缩放，绿色弧线表示最近移动。</p>
-        <p className="truncate text-right text-slate-500">{hoveredLabel ?? "悬停、聚焦或点击后查看地点与居民摘要"}</p>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 rounded-b-[24px] bg-gradient-to-t from-white/80 to-transparent px-4 py-2 text-xs text-slate-400">
+          <p>点击地点查看详情，点击居民进入个人页。拖拽平移，滚轮或按钮缩放，绿色弧线表示最近移动。</p>
+          <p className="flex-shrink-0 text-right text-slate-500">{hoveredLabel ?? "悬停、聚焦或点击后查看地点与居民摘要"}</p>
+        </div>
       </div>
     </motion.div>
   );
