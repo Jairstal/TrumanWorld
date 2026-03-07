@@ -56,8 +56,8 @@ export function RunList({ runs, onDeleteAll }: RunListProps) {
 
   if (runs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50">
+      <div className="flex flex-col items-center justify-center rounded-[28px] border border-dashed border-slate-300 bg-white/80 py-16 text-center shadow-sm">
+        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-50">
           <span className="text-3xl">🌱</span>
         </div>
         <p className="mt-4 text-sm font-medium text-slate-600">还没有运行</p>
@@ -68,7 +68,6 @@ export function RunList({ runs, onDeleteAll }: RunListProps) {
 
   return (
     <div className="space-y-3">
-      {/* 运行卡片网格 */}
       <div className="grid gap-3 sm:grid-cols-2">
         {runs.map((run) => {
           const isRunning = run.status === "running";
@@ -76,15 +75,16 @@ export function RunList({ runs, onDeleteAll }: RunListProps) {
           return (
             <div
               key={run.id}
-              className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 transition hover:border-moss hover:shadow-md"
+              className="group relative overflow-hidden rounded-[28px] border border-slate-200 bg-white/85 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-moss hover:shadow-md"
             >
-              {/* 顶部：名称和状态 */}
+              <div className="pointer-events-none absolute right-0 top-0 h-24 w-24 rounded-full bg-mist/70 blur-2xl" />
               <div className="flex items-start justify-between gap-3">
                 <Link href={`/runs/${run.id}`} className="min-w-0 flex-1">
-                  <h3 className="truncate font-medium text-ink group-hover:text-moss transition-colors">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Run</p>
+                  <h3 className="mt-2 truncate text-lg font-semibold text-ink transition-colors group-hover:text-moss">
                     {run.name}
                   </h3>
-                  <p className="mt-1 text-xs text-slate-400">ID: {run.id.slice(0, 8)}</p>
+                  <p className="mt-1 text-xs text-slate-400">ID {run.id.slice(0, 8)}...</p>
                 </Link>
                 <div
                   className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${
@@ -97,8 +97,7 @@ export function RunList({ runs, onDeleteAll }: RunListProps) {
                 />
               </div>
 
-              {/* 中间：状态标签和 Tick */}
-              <div className="mt-4 flex items-center justify-between">
+              <div className="mt-5 flex items-center justify-between">
                 <span
                   className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                     isRunning
@@ -115,19 +114,30 @@ export function RunList({ runs, onDeleteAll }: RunListProps) {
                 </span>
               </div>
 
-              {/* 底部：操作按钮 */}
-              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <Link
+                  href={`/runs/${run.id}`}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-medium text-ink transition hover:border-moss hover:text-moss"
+                >
+                  打开总览
+                </Link>
                 <Link
                   href={`/runs/${run.id}/world`}
-                  className="text-xs text-moss hover:underline"
+                  className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-medium text-slate-600 transition hover:border-moss hover:text-moss"
                 >
-                  查看世界 →
+                  世界视图
                 </Link>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                <p className="text-xs text-slate-400">
+                  {isRunning ? "居民正在持续活动" : isPaused ? "暂停后适合排查行为" : "等待进一步操作"}
+                </p>
                 <button
                   type="button"
                   onClick={() => handleDelete(run.id)}
                   disabled={isPending && deletingId === run.id}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
                   title="删除"
                 >
                   {deletingId === run.id ? (
@@ -147,14 +157,13 @@ export function RunList({ runs, onDeleteAll }: RunListProps) {
         })}
       </div>
 
-      {/* 删除全部按钮 */}
       {runs.length > 1 && (
         <div className="flex justify-end pt-2">
           <button
             type="button"
             onClick={handleDeleteAll}
             disabled={isDeletingAll || isPending}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
           >
             {isDeletingAll ? (
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-red-400" />

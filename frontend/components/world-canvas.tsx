@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import useSWR from "swr";
 import type { WorldSnapshot } from "@/lib/api";
-import { AgentAvatar, inferAgentStatus } from "@/components/agent-avatar";
+import { AgentAvatar } from "@/components/agent-avatar";
+import { inferAgentStatus } from "@/lib/agent-utils";
 import { EventCard } from "@/components/event-card";
 import { TownMap } from "@/components/town-map";
 
@@ -19,6 +20,158 @@ const EVENT_FILTERS: Array<{ id: EventFilter; label: string }> = [
   { id: "activity", label: "动作" },
   { id: "movement", label: "移动" },
 ];
+
+// 情报流放大模式组件
+function IntelligenceStreamModal({
+  isOpen,
+  onClose,
+  world,
+  runId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  world: WorldSnapshot;
+  runId: string;
+}) {
+  const [eventFilter, setEventFilter] = useState<EventFilter>("all");
+
+  const { agentNameMap, locationNameMap, visibleEvents, latestTick } = useMemo(() => {
+    const namesByAgent: Record<string, string> = {};
+    const namesByLocation: Record<string, string> = {};
+
+    for (const location of world.locations) {
+      namesByLocation[location.id] = location.name;
+      for (const agent of location.occupants) {
+        namesByAgent[agent.id] = agent.name;
+      }
+    }
+
+    const filtered = world.recent_events.filter((event) => {
+      if (eventFilter === "all") return true;
+      if (eventFilter === "social") return event.event_type === "talk";
+      if (eventFilter === "movement") return event.event_type === "move";
+      return event.event_type === "work" || event.event_type === "rest";
+    });
+
+    const tick = world.recent_events[0]?.tick_no ?? world.run.current_tick ?? 0;
+
+    return {
+      agentNameMap: namesByAgent,
+      locationNameMap: namesByLocation,
+      visibleEvents: filtered,
+      latestTick: tick,
+    };
+  }, [eventFilter, world]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl"
+      >
+        {/* 头部 */}
+        <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-4">
+          <div>
+            <h2 className="text-xl font-semibold text-ink">世界情报流</h2>
+            <p className="text-sm text-slate-500">实时事件监控中心</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* 筛选器 */}
+            <div className="flex gap-1">
+              {EVENT_FILTERS.map((filter) => {
+                const active = filter.id === eventFilter;
+                return (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => setEventFilter(filter.id)}
+                    className={`rounded-full px-3 py-1.5 text-xs transition ${
+                      active
+                        ? "bg-ink text-white"
+                        : "border border-slate-200 bg-white text-slate-500 hover:border-moss hover:text-moss"
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+            {/* 关闭按钮 */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="ml-2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* 统计信息 */}
+        <div className="grid grid-cols-4 gap-4 border-b border-slate-100 bg-slate-50/50 px-6 py-3">
+          {[
+            { label: "总事件数", value: world.recent_events.length },
+            { label: "当前 Tick", value: world.run.current_tick ?? 0 },
+            { label: "活跃地点", value: world.locations.filter(l => l.occupants.length > 0).length },
+            { label: "居民总数", value: world.locations.reduce((sum, l) => sum + l.occupants.length, 0) },
+          ].map(({ label, value }) => (
+            <div key={label} className="text-center">
+              <p className="text-2xl font-semibold text-ink">{value}</p>
+              <p className="text-xs text-slate-400">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* 事件列表 */}
+        <div className="flex-1 overflow-y-auto bg-slate-50/30 p-6">
+          {visibleEvents.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center text-slate-400">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-12 w-12">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="mt-3 text-sm">当前筛选条件下没有事件</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <AnimatePresence mode="popLayout">
+                {visibleEvents.map((event, index) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    index={index}
+                    isLatest={event.tick_no === latestTick}
+                    agentNameMap={agentNameMap}
+                    locationNameMap={locationNameMap}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+
+        {/* 底部 */}
+        <div className="border-t border-slate-100 bg-white px-6 py-3">
+          <div className="flex items-center justify-between text-sm text-slate-500">
+            <span>显示最近 {visibleEvents.length} 条事件</span>
+            <Link
+              href={`/runs/${runId}/timeline`}
+              onClick={onClose}
+              className="text-moss hover:underline"
+            >
+              查看完整时间线 →
+            </Link>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 const API_BASE =
   (typeof window !== "undefined" ? process.env.NEXT_PUBLIC_API_BASE_URL : undefined) ??
@@ -95,6 +248,7 @@ export function WorldCanvas({ runId, initialData }: Props) {
   const router = useRouter();
   const [highlightedLocationId, setHighlightedLocationId] = useState<string | null>(null);
   const [eventFilter, setEventFilter] = useState<EventFilter>("all");
+  const [isStreamExpanded, setIsStreamExpanded] = useState(false);
 
   const { data: world, error, isValidating, mutate } = useSWR<WorldSnapshot | null>(
     `${API_BASE}/runs/${runId}/world`,
@@ -378,32 +532,47 @@ export function WorldCanvas({ runId, initialData }: Props) {
                   </p>
                 ) : null}
               </div>
-              <div className="flex flex-wrap gap-1">
-                {EVENT_FILTERS.map((filter) => {
-                  const active = filter.id === eventFilter;
-                  return (
-                    <button
-                      key={filter.id}
-                      type="button"
-                      onClick={() => setEventFilter(filter.id)}
-                      className={`rounded-full px-2.5 py-1 text-[11px] transition ${
-                        active
-                          ? "bg-ink text-white"
-                          : "border border-slate-200 bg-white text-slate-500 hover:border-moss hover:text-moss"
-                      }`}
-                    >
-                      {filter.label}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center gap-2">
+                {/* 放大按钮 */}
+                <button
+                  type="button"
+                  onClick={() => setIsStreamExpanded(true)}
+                  className="flex items-center gap-1.5 rounded-full bg-moss px-3 py-1.5 text-xs font-medium text-white transition hover:bg-moss/90"
+                  title="放大查看情报流"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                  放大
+                </button>
               </div>
+            </div>
+            {/* 简化的筛选器 */}
+            <div className="mb-3 flex flex-wrap gap-1">
+              {EVENT_FILTERS.map((filter) => {
+                const active = filter.id === eventFilter;
+                return (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => setEventFilter(filter.id)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] transition ${
+                      active
+                        ? "bg-ink text-white"
+                        : "border border-slate-200 bg-white text-slate-500 hover:border-moss hover:text-moss"
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
             </div>
             <div className="min-h-0 space-y-2 overflow-auto pr-1">
               {visibleEvents.length === 0 ? (
                 <p className="text-sm text-slate-500">当前筛选条件下没有公开事件。</p>
               ) : (
                 <AnimatePresence mode="popLayout">
-                  {visibleEvents.map((event, index) => (
+                  {visibleEvents.slice(0, 5).map((event, index) => (
                     <EventCard
                       key={event.id}
                       event={event}
@@ -415,8 +584,27 @@ export function WorldCanvas({ runId, initialData }: Props) {
                   ))}
                 </AnimatePresence>
               )}
+              {visibleEvents.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setIsStreamExpanded(true)}
+                  className="w-full rounded-xl border border-dashed border-slate-300 py-2 text-xs text-slate-500 transition hover:border-moss hover:text-moss"
+                >
+                  还有 {visibleEvents.length - 5} 条事件，点击查看全部 →
+                </button>
+              )}
             </div>
           </div>
+
+          {/* 情报流放大模态框 */}
+          {world && (
+            <IntelligenceStreamModal
+              isOpen={isStreamExpanded}
+              onClose={() => setIsStreamExpanded(false)}
+              world={world}
+              runId={runId}
+            />
+          )}
         </div>
       </div>
     </div>
