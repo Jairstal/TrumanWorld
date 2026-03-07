@@ -139,7 +139,8 @@ async def test_get_agent_returns_generated_tick_memories(client, db_session):
     assert len(body["recent_events"]) == 1
     assert body["recent_events"][0]["event_type"] == "move"
     assert len(body["memories"]) == 1
-    assert body["memories"][0]["summary"] == "Moved to loc-park"
+    # 记忆摘要使用地点名称而非 ID
+    assert body["memories"][0]["summary"] == "Moved to Park"
 
 
 @pytest.mark.asyncio
@@ -186,7 +187,8 @@ async def test_get_agent_returns_generated_talk_memory_for_target(client, db_ses
     assert len(body["recent_events"]) == 1
     assert body["recent_events"][0]["event_type"] == "talk"
     assert len(body["memories"]) == 1
-    assert body["memories"][0]["summary"] == "Talked with alice-talk"
+    # 对话记忆包含实际对话内容（由 heuristic provider 生成）
+    assert body["memories"][0]["summary"].startswith("Alice said:")
 
 
 @pytest.mark.asyncio
