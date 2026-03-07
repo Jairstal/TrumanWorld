@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -31,7 +31,7 @@ services:
     environment:
       TRUMANWORLD_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/trumanworld
     ports:
-      - "8000:8000"
+      - "38000:8000"
     volumes:
       - .:/app
       - backend_venv:/app/backend/.venv
@@ -51,10 +51,10 @@ services:
       backend:
         condition: service_started
     environment:
-      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000/api
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:38000/api
       INTERNAL_API_BASE_URL: http://backend:8000/api
     ports:
-      - "3000:3000"
+      - "33100:3000"
     volumes:
       - .:/app
       - frontend_node_modules:/app/frontend/node_modules
