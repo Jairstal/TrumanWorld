@@ -29,6 +29,8 @@ class RunResponse(BaseModel):
     id: UUID
     name: str
     status: str
+    current_tick: int | None = None
+    tick_minutes: int | None = None
 
 
 class DirectorEventRequest(BaseModel):
@@ -76,9 +78,7 @@ async def create_run(
 
         settings = get_settings()
         # Create a shared agent runtime (not bound to any session)
-        agent_runtime = AgentRuntime(
-            registry=AgentRegistry(settings.project_root / "agents")
-        )
+        agent_runtime = AgentRuntime(registry=AgentRegistry(settings.project_root / "agents"))
 
         async def tick_callback(rid: str) -> None:
             # Use isolated tick method to avoid greenlet conflicts with anyio
@@ -99,7 +99,16 @@ async def list_runs(
     repo = RunRepository(session)
     runs = await repo.list()
     logger.debug(f"Found {len(runs)} runs")
-    return [RunResponse(id=UUID(run.id), name=run.name, status=run.status) for run in runs]
+    return [
+        RunResponse(
+            id=UUID(run.id),
+            name=run.name,
+            status=run.status,
+            current_tick=run.current_tick,
+            tick_minutes=run.tick_minutes,
+        )
+        for run in runs
+    ]
 
 
 @router.post("/{run_id}/start", response_model=RunResponse)

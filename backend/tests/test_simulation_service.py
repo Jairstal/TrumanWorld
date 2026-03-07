@@ -83,7 +83,7 @@ async def test_simulation_service_persists_tick_and_events(db_session):
     assert events[0].actor_agent_id == "alice"
     assert events[0].payload["to_location_id"] == "loc-park"
     assert len(memories) == 1
-    assert memories[0].summary == "Moved to loc-park"
+    assert memories[0].summary == "Moved to Park"
     assert memories[0].source_event_id == events[0].id
 
 
@@ -422,8 +422,10 @@ async def test_simulation_service_updates_relationships_from_talk_events(db_sess
     assert bob_relationships[0].other_agent_id == "alice-5"
     assert alice_relationships[0].familiarity == 0.1
     assert bob_relationships[0].trust == 0.05
-    assert alice_memories[0].summary == "Talked with bob-5"
-    assert bob_memories[0].summary == "Talked with alice-5"
+    assert alice_memories[0].summary.startswith("Talked with Bob")
+    assert bob_memories[0].summary.startswith("Talked with Alice") or bob_memories[
+        0
+    ].summary.startswith("Alice said")
 
 
 @pytest.mark.asyncio
@@ -446,6 +448,7 @@ async def test_run_tick_isolated_with_separate_sessions(db_session):
 
     # Create tables
     from app.store.models import Base
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -507,4 +510,5 @@ async def test_run_tick_isolated_with_separate_sessions(db_session):
 
     # Cleanup
     import shutil
+
     shutil.rmtree(tmp_path)

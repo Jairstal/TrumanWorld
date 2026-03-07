@@ -86,8 +86,14 @@ def test_decision_prompt_requires_message_field_for_talk(runtime: AgentRuntime):
         world={"current_goal": "talk", "nearby_agent_id": "bob"},
     )
 
-    assert "JSON 仅可包含字段：`action_type`、`target_location_id`、`target_agent_id`、`message`、`payload`" in invocation.prompt
-    assert "当 `action_type=talk` 时，必须提供 `target_agent_id` 与一句可展示的 `message`" in invocation.prompt
+    assert (
+        "JSON 仅可包含字段：`action_type`、`target_location_id`、`target_agent_id`、`message`、`payload`"
+        in invocation.prompt
+    )
+    assert (
+        "当 `action_type=talk` 时，必须提供 `target_agent_id` 与一句可展示的 `message`"
+        in invocation.prompt
+    )
 
 
 def test_runtime_prepare_reflector(runtime: AgentRuntime):

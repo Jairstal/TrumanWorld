@@ -33,6 +33,7 @@ from claude_agent_sdk import (
 @dataclass
 class TestResult:
     """测试结果"""
+
     method: str
     query_no: int
     success: bool
@@ -56,7 +57,7 @@ async def run_query_test(num_queries: int = 3) -> list[TestResult]:
         try:
             response_text = []
             async for message in query(
-                prompt=f"请只回复一个数字：{i+1}",
+                prompt=f"请只回复一个数字：{i + 1}",
                 options=options,
             ):
                 if isinstance(message, AssistantMessage):
@@ -67,22 +68,26 @@ async def run_query_test(num_queries: int = 3) -> list[TestResult]:
                     pass  # 完成
 
             elapsed = time.time() - start
-            results.append(TestResult(
-                method="query",
-                query_no=i + 1,
-                success=True,
-                latency_seconds=elapsed,
-                response_preview="".join(response_text)[:50],
-            ))
+            results.append(
+                TestResult(
+                    method="query",
+                    query_no=i + 1,
+                    success=True,
+                    latency_seconds=elapsed,
+                    response_preview="".join(response_text)[:50],
+                )
+            )
         except Exception as e:
             elapsed = time.time() - start
-            results.append(TestResult(
-                method="query",
-                query_no=i + 1,
-                success=False,
-                latency_seconds=elapsed,
-                error=str(e),
-            ))
+            results.append(
+                TestResult(
+                    method="query",
+                    query_no=i + 1,
+                    success=False,
+                    latency_seconds=elapsed,
+                    error=str(e),
+                )
+            )
 
     return results
 
@@ -111,7 +116,7 @@ async def run_client_test(num_queries: int = 3) -> list[TestResult]:
             start = time.time()
             try:
                 # 发送查询
-                await client.query(f"请只回复一个数字：{i+1}")
+                await client.query(f"请只回复一个数字：{i + 1}")
 
                 # 接收响应
                 response_text = []
@@ -124,32 +129,38 @@ async def run_client_test(num_queries: int = 3) -> list[TestResult]:
                         break  # 收到结果即结束
 
                 elapsed = time.time() - start
-                results.append(TestResult(
-                    method="client",
-                    query_no=i + 1,
-                    success=True,
-                    latency_seconds=elapsed,
-                    response_preview="".join(response_text)[:50],
-                ))
+                results.append(
+                    TestResult(
+                        method="client",
+                        query_no=i + 1,
+                        success=True,
+                        latency_seconds=elapsed,
+                        response_preview="".join(response_text)[:50],
+                    )
+                )
 
             except Exception as e:
                 elapsed = time.time() - start
-                results.append(TestResult(
-                    method="client",
-                    query_no=i + 1,
-                    success=False,
-                    latency_seconds=elapsed,
-                    error=str(e),
-                ))
+                results.append(
+                    TestResult(
+                        method="client",
+                        query_no=i + 1,
+                        success=False,
+                        latency_seconds=elapsed,
+                        error=str(e),
+                    )
+                )
 
     except Exception as e:
-        results.append(TestResult(
-            method="client",
-            query_no=0,
-            success=False,
-            latency_seconds=time.time() - connect_start,
-            error=f"连接失败: {e}",
-        ))
+        results.append(
+            TestResult(
+                method="client",
+                query_no=0,
+                success=False,
+                latency_seconds=time.time() - connect_start,
+                error=f"连接失败: {e}",
+            )
+        )
     finally:
         await client.disconnect()
 
@@ -187,7 +198,7 @@ async def run_concurrent_client_test(
             for i in range(queries_per_client):
                 start = time.time()
                 try:
-                    await client.query(f"Client {client_id}, Query {i+1}: 回复一个数字")
+                    await client.query(f"Client {client_id}, Query {i + 1}: 回复一个数字")
                     response_text = []
                     async for message in client.receive_response():
                         if isinstance(message, AssistantMessage):
@@ -198,31 +209,37 @@ async def run_concurrent_client_test(
                             break
 
                     elapsed = time.time() - start
-                    client_results.append(TestResult(
-                        method=f"client-{client_id}",
-                        query_no=i + 1,
-                        success=True,
-                        latency_seconds=elapsed,
-                        response_preview="".join(response_text)[:30],
-                    ))
+                    client_results.append(
+                        TestResult(
+                            method=f"client-{client_id}",
+                            query_no=i + 1,
+                            success=True,
+                            latency_seconds=elapsed,
+                            response_preview="".join(response_text)[:30],
+                        )
+                    )
                 except Exception as e:
                     elapsed = time.time() - start
-                    client_results.append(TestResult(
-                        method=f"client-{client_id}",
-                        query_no=i + 1,
-                        success=False,
-                        latency_seconds=elapsed,
-                        error=str(e),
-                    ))
+                    client_results.append(
+                        TestResult(
+                            method=f"client-{client_id}",
+                            query_no=i + 1,
+                            success=False,
+                            latency_seconds=elapsed,
+                            error=str(e),
+                        )
+                    )
 
         except Exception as e:
-            client_results.append(TestResult(
-                method=f"client-{client_id}",
-                query_no=0,
-                success=False,
-                latency_seconds=0,
-                error=f"连接失败: {e}",
-            ))
+            client_results.append(
+                TestResult(
+                    method=f"client-{client_id}",
+                    query_no=0,
+                    success=False,
+                    latency_seconds=0,
+                    error=f"连接失败: {e}",
+                )
+            )
         finally:
             await client.disconnect()
 
@@ -267,7 +284,7 @@ async def test_long_running_client() -> dict[str, Any]:
         for i in range(10):
             start = time.time()
             try:
-                await client.query(f"查询 {i+1}/10: 回复 OK")
+                await client.query(f"查询 {i + 1}/10: 回复 OK")
                 response_text = []
                 async for message in client.receive_response():
                     if isinstance(message, AssistantMessage):
@@ -278,27 +295,31 @@ async def test_long_running_client() -> dict[str, Any]:
                         break
 
                 elapsed = time.time() - start
-                results["queries"].append({
-                    "no": i + 1,
-                    "success": True,
-                    "latency": elapsed,
-                    "response": "".join(response_text)[:30],
-                })
-                print(f"[LONG-RUN] 查询 {i+1} 完成: {elapsed:.2f}s")
+                results["queries"].append(
+                    {
+                        "no": i + 1,
+                        "success": True,
+                        "latency": elapsed,
+                        "response": "".join(response_text)[:30],
+                    }
+                )
+                print(f"[LONG-RUN] 查询 {i + 1} 完成: {elapsed:.2f}s")
 
                 # 间隔 1 秒
                 await asyncio.sleep(1)
 
             except Exception as e:
                 elapsed = time.time() - start
-                results["queries"].append({
-                    "no": i + 1,
-                    "success": False,
-                    "latency": elapsed,
-                    "error": str(e),
-                })
+                results["queries"].append(
+                    {
+                        "no": i + 1,
+                        "success": False,
+                        "latency": elapsed,
+                        "error": str(e),
+                    }
+                )
                 results["errors"].append(str(e))
-                print(f"[LONG-RUN] 查询 {i+1} 失败: {e}")
+                print(f"[LONG-RUN] 查询 {i + 1} 失败: {e}")
 
                 # 尝试重连
                 try:
@@ -323,6 +344,7 @@ async def test_long_running_client() -> dict[str, Any]:
 
 # ============ Pytest 测试用例 ============
 
+
 @pytest.mark.asyncio
 async def test_query_latency():
     """测试 query() 的延迟"""
@@ -331,7 +353,9 @@ async def test_query_latency():
 
     for r in results:
         status = "✓" if r.success else "✗"
-        print(f"  [{status}] Query {r.query_no}: {r.latency_seconds:.2f}s - {r.response_preview or r.error}")
+        print(
+            f"  [{status}] Query {r.query_no}: {r.latency_seconds:.2f}s - {r.response_preview or r.error}"
+        )
 
     # 断言：至少有一个成功
     assert any(r.success for r in results), "所有 query 都失败了"
@@ -345,7 +369,9 @@ async def test_client_latency():
 
     for r in results:
         status = "✓" if r.success else "✗"
-        print(f"  [{status}] Query {r.query_no}: {r.latency_seconds:.2f}s - {r.response_preview or r.error}")
+        print(
+            f"  [{status}] Query {r.query_no}: {r.latency_seconds:.2f}s - {r.response_preview or r.error}"
+        )
 
     # 断言：至少有一个成功
     assert any(r.success for r in results), "所有 client query 都失败了"
@@ -358,11 +384,15 @@ async def test_compare_latency():
 
     # query 方式
     query_results = await run_query_test(num_queries=3)
-    query_avg = sum(r.latency_seconds for r in query_results if r.success) / max(1, sum(1 for r in query_results if r.success))
+    query_avg = sum(r.latency_seconds for r in query_results if r.success) / max(
+        1, sum(1 for r in query_results if r.success)
+    )
 
     # client 方式
     client_results = await run_client_test(num_queries=3)
-    client_avg = sum(r.latency_seconds for r in client_results if r.success) / max(1, sum(1 for r in client_results if r.success))
+    client_avg = sum(r.latency_seconds for r in client_results if r.success) / max(
+        1, sum(1 for r in client_results if r.success)
+    )
 
     print(f"\n  query() 平均延迟: {query_avg:.2f}s")
     print(f"  client 复用平均延迟: {client_avg:.2f}s")

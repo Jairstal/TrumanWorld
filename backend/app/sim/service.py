@@ -172,9 +172,7 @@ class SimulationService:
         result = runner.tick(intents)
 
         # Phase 3: Persist results with a fresh session
-        async with AsyncSessionType(
-            engine, expire_on_commit=False
-        ) as write_session:
+        async with AsyncSessionType(engine, expire_on_commit=False) as write_session:
             await self._persist_results(write_session, run_id, result, world, current_tick + 1)
 
         return result
@@ -289,12 +287,23 @@ class SimulationService:
         events: list[Event],
     ) -> None:
         """Persist memories using the provided session."""
+        # Build agent name map for friendly memory content
+        agent_repo = AgentRepository(session)
+        agents = await agent_repo.list_for_run(run_id)
+        agent_name_map = {a.id: a.name for a in agents}
+
+        location_repo = LocationRepository(session)
+        locations = await location_repo.list_for_run(run_id)
+        location_name_map = {loc.id: loc.name for loc in locations}
+
         memories: list[Memory] = []
         for event in events:
             if event.event_type.endswith("_rejected") or event.actor_agent_id is None:
                 continue
 
-            for agent_id, content, summary, related_agent_id in self._build_memory_records(event):
+            for agent_id, content, summary, related_agent_id in self._build_memory_records(
+                event, agent_name_map, location_name_map
+            ):
                 memories.append(
                     Memory(
                         id=str(uuid4()),
@@ -559,12 +568,18 @@ class SimulationService:
             await self._persist_tick_relationships(run_id, persisted)
 
     async def _persist_tick_memories(self, run_id: str, events: list[Event]) -> None:
+        agent_name_map = {a.id: a.name for a in await self.agent_repo.list_for_run(run_id)}
+        location_name_map = {
+            loc.id: loc.name for loc in await self.location_repo.list_for_run(run_id)
+        }
         memories: list[Memory] = []
         for event in events:
             if event.event_type.endswith("_rejected") or event.actor_agent_id is None:
                 continue
 
-            for agent_id, content, summary, related_agent_id in self._build_memory_records(event):
+            for agent_id, content, summary, related_agent_id in self._build_memory_records(
+                event, agent_name_map, location_name_map
+            ):
                 memories.append(
                     Memory(
                         id=str(uuid4()),
@@ -585,12 +600,29 @@ class SimulationService:
         if memories:
             await self.memory_repo.create_many(memories)
 
-    def _build_memory_records(self, event: Event) -> list[tuple[str, str, str, str | None]]:
+    def _build_memory_records(
+        self,
+        event: Event,
+        agent_name_map: dict[str, str] | None = None,
+        location_name_map: dict[str, str] | None = None,
+    ) -> list[tuple[str, str, str, str | None]]:
         payload = event.payload or {}
+        _agents = agent_name_map or {}
+        _locations = location_name_map or {}
+
+        def agent_name(agent_id: str | None) -> str:
+            if not agent_id:
+                return "someone"
+            return _agents.get(agent_id, agent_id)
+
+        def location_name(loc_id: str | None) -> str:
+            if not loc_id:
+                return "unknown"
+            return _locations.get(loc_id, loc_id)
 
         if event.event_type == "move":
-            destination = payload.get("to_location_id", "unknown")
-            origin = payload.get("from_location_id", "unknown")
+            destination = location_name(str(payload.get("to_location_id", "")) or None)
+            origin = location_name(str(payload.get("from_location_id", "")) or None)
             return [
                 (
                     event.actor_agent_id,
@@ -601,41 +633,32 @@ class SimulationService:
             ]
 
         if event.event_type == "talk":
-            target_agent_id = payload.get("target_agent_id", "someone")
-            location_id = payload.get("location_id", "unknown")
+            target_id = str(payload.get("target_agent_id") or event.target_agent_id or "")
+            loc_id = str(payload.get("location_id") or "")
+            target = agent_name(target_id)
+            actor = agent_name(event.actor_agent_id)
+            loc = location_name(loc_id)
             message = payload.get("message", "")
-            
-            # 构建记忆内容，包含对话消息
+
             if message:
-                content = f"Talked with {target_agent_id} at {location_id}: \"{message}\""
-                summary = f"Talked with {target_agent_id}: {message[:30]}{'...' if len(message) > 30 else ''}"
-            else:
-                content = f"Talked with {target_agent_id} at {location_id}."
-                summary = f"Talked with {target_agent_id}"
-            
-            records = [
-                (
-                    event.actor_agent_id,
-                    content,
-                    summary,
-                    event.target_agent_id,
+                actor_content = f'Talked with {target} at {loc}: "{message}"'
+                actor_summary = (
+                    f"Talked with {target}: {message[:30]}{'...' if len(message) > 30 else ''}"
                 )
+                target_content = f'{actor} said: "{message}"'
+                target_summary = f"{actor} said: {message[:30]}{'...' if len(message) > 30 else ''}"
+            else:
+                actor_content = f"Talked with {target} at {loc}."
+                actor_summary = f"Talked with {target}"
+                target_content = f"Talked with {actor} at {loc}."
+                target_summary = f"Talked with {actor}"
+
+            records: list[tuple[str, str, str, str | None]] = [
+                (event.actor_agent_id, actor_content, actor_summary, event.target_agent_id)
             ]
             if event.target_agent_id:
-                # 为被交谈者也创建记忆，但内容不同
-                if message:
-                    target_content = f"Talked with {event.actor_agent_id} at {location_id}: they said \"{message}\""
-                    target_summary = f"Talked with {event.actor_agent_id}"
-                else:
-                    target_content = f"Talked with {event.actor_agent_id} at {location_id}."
-                    target_summary = f"Talked with {event.actor_agent_id}"
                 records.append(
-                    (
-                        event.target_agent_id,
-                        target_content,
-                        target_summary,
-                        event.actor_agent_id,
-                    )
+                    (event.target_agent_id, target_content, target_summary, event.actor_agent_id)
                 )
             return records
 
