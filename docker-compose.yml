@@ -1,0 +1,71 @@
+services:
+  db:
+    image: postgres:16
+    container_name: trumanworld-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: trumanworld
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trumanworld"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: trumanworld-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      TRUMANWORLD_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/trumanworld
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - backend_venv:/app/backend/.venv
+    working_dir: /app/backend
+    command: >
+      sh -c "uv sync --extra dev &&
+             uv run alembic upgrade head &&
+             uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: trumanworld-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000/api
+      INTERNAL_API_BASE_URL: http://backend:8000/api
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - frontend_node_modules:/app/frontend/node_modules
+      - frontend_next:/app/frontend/.next
+    working_dir: /app/frontend
+    command: >
+      sh -c "npm install &&
+             npm run dev -- --hostname 0.0.0.0 --port 3000"
+
+volumes:
+  postgres_data:
+  backend_venv:
+  frontend_node_modules:
+  frontend_next:

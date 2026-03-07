@@ -177,3 +177,36 @@ def test_runtime_selects_claude_provider_from_env(tmp_path: Path, monkeypatch: p
     assert isinstance(runtime.decision_provider, ClaudeSDKDecisionProvider)
 
     get_settings.cache_clear()
+
+
+def test_runtime_selects_claude_provider_from_legacy_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("TRUMANWORLD_AGENT_PROVIDER", "anthropic")
+    monkeypatch.setenv("TRUMANWORLD_ANTHROPIC_MODEL", "legacy-model")
+    get_settings.cache_clear()
+
+    agent_dir = tmp_path / "demo_agent"
+    agent_dir.mkdir(parents=True)
+    (agent_dir / "agent.yml").write_text(
+        "\n".join(
+            [
+                "id: demo_agent",
+                "name: Demo Agent",
+                "occupation: resident",
+                "home: demo_home",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (agent_dir / "prompt.md").write_text("# Demo Agent\nBase prompt", encoding="utf-8")
+
+    runtime = AgentRuntime(
+        registry=AgentRegistry(tmp_path),
+        context_builder=ContextBuilder(),
+    )
+
+    settings = get_settings()
+    assert settings.agent_provider == "claude"
+    assert settings.agent_model == "legacy-model"
+    assert isinstance(runtime.decision_provider, ClaudeSDKDecisionProvider)
+
+    get_settings.cache_clear()

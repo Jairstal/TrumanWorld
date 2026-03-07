@@ -57,7 +57,11 @@ TRUMANWORLD_AGENT_MODEL=claude-sonnet-4-20250514
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api
+INTERNAL_API_BASE_URL=http://127.0.0.1:8000/api
 ```
+
+- `NEXT_PUBLIC_API_BASE_URL` 给浏览器端请求使用
+- `INTERNAL_API_BASE_URL` 给 Next.js 服务端渲染时请求后端使用
 
 ### 启动后端
 
@@ -85,6 +89,26 @@ make frontend-dev
 ```bash
 make migrate
 ```
+
+### 一次性启动前后端和数据库
+
+```bash
+docker compose up --build
+```
+
+默认暴露：
+
+- PostgreSQL: `localhost:5432`
+- Backend API: `http://127.0.0.1:8000`
+- Frontend UI: `http://127.0.0.1:3000`
+
+说明：
+
+- `backend` 容器启动时会自动执行 `alembic upgrade head`
+- `frontend` 会同时注入：
+  - `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api`
+  - `INTERNAL_API_BASE_URL=http://backend:8000/api`
+- Compose 当前是开发向配置，使用挂载卷与热重载
 
 ### 代码检查
 

@@ -81,12 +81,22 @@ export type AgentSummary = {
   current_location_id?: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000/api";
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000/api";
+
+function resolveApiBaseUrl() {
+  const publicBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+  const internalBaseUrl = process.env.INTERNAL_API_BASE_URL?.replace(/\/$/, "");
+
+  if (typeof window === "undefined") {
+    return internalBaseUrl ?? publicBaseUrl ?? DEFAULT_API_BASE_URL;
+  }
+
+  return publicBaseUrl ?? DEFAULT_API_BASE_URL;
+}
 
 async function safeFetch<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
       cache: "no-store",
       headers: {
         Accept: "application/json",
@@ -105,7 +115,7 @@ async function safeFetch<T>(path: string, fallback: T): Promise<T> {
 
 async function safePost<T>(path: string, body: unknown, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
       method: "POST",
       headers: {
         Accept: "application/json",

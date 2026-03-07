@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,8 +23,17 @@ class Settings(BaseSettings):
     anthropic_base_url: str | None = None
     agent_provider: str = "heuristic"
     agent_model: str | None = None
+    anthropic_model: str | None = None
     log_level: str = "INFO"
     project_root: Path = PROJECT_ROOT
+
+    @model_validator(mode="after")
+    def normalize_agent_settings(self) -> "Settings":
+        if self.agent_provider == "anthropic":
+            self.agent_provider = "claude"
+        if self.agent_model is None and self.anthropic_model is not None:
+            self.agent_model = self.anthropic_model
+        return self
 
 
 @lru_cache(maxsize=1)
