@@ -23,15 +23,21 @@ class Settings(BaseSettings):
     anthropic_base_url: str | None = None
     agent_provider: str = "heuristic"
     agent_model: str | None = None
+    agent_budget_usd: float = 1.0
     anthropic_model: str | None = None
     log_level: str = "INFO"
     project_root: Path = PROJECT_ROOT
     cors_allowed_origins: list[str] = Field(
         default_factory=lambda: [
+            # Docker 环境
             "http://127.0.0.1:33100",
             "http://localhost:33100",
+            # 默认 Next.js 端口
             "http://127.0.0.1:3000",
             "http://localhost:3000",
+            # Makefile dev 端口
+            "http://127.0.0.1:13000",
+            "http://localhost:13000",
         ]
     )
 

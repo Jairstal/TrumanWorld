@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 from abc import ABC, abstractmethod
 from typing import Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.infra.settings import Settings
 
@@ -77,7 +78,7 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
-    async def decide(self, invocation: Any) -> RuntimeDecision:
+    async def decide(self, invocation: RuntimeInvocation) -> RuntimeDecision:
         if shutil.which("claude") is None:
             msg = "Claude CLI is not available in the current environment"
             raise RuntimeError(msg)
@@ -88,32 +89,61 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
         if self.settings.anthropic_base_url:
             env["ANTHROPIC_BASE_URL"] = self.settings.anthropic_base_url
 
+        # Note: output_format is not supported by MiniMax API
+        # Use global budget setting as fallback if invocation budget is too low
+        budget = invocation.max_budget_usd if invocation.max_budget_usd >= 0.1 else self.settings.agent_budget_usd
         options = ClaudeAgentOptions(
             max_turns=invocation.max_turns,
-            max_budget_usd=invocation.max_budget_usd,
+            max_budget_usd=budget,
             model=self.settings.agent_model,
             cwd=str(self.settings.project_root),
             env=env,
-            output_format=DECISION_OUTPUT_SCHEMA,
         )
 
+        # Build prompt that asks for JSON response
+        json_schema = json.dumps(DECISION_OUTPUT_SCHEMA, indent=2)
+        full_prompt = f"""{invocation.prompt}
+
+重要：你必须只返回一个有效的 JSON 对象，不要有其他任何文本。JSON 格式如下：
+{json_schema}
+
+只返回 JSON，不要有 markdown 代码块标记。"""
+
         try:
-            async for message in query(prompt=invocation.prompt, options=options):
+            async for message in query(prompt=full_prompt, options=options):
                 if isinstance(message, ResultMessage):
                     if message.is_error:
                         msg = message.result or "Claude SDK decision failed"
                         raise RuntimeError(msg)
-                    if message.structured_output is not None:
-                        return RuntimeDecision.model_validate(message.structured_output)
+                    # Parse JSON from text response
                     if message.result:
                         try:
-                            return RuntimeDecision.model_validate(json.loads(message.result))
-                        except json.JSONDecodeError as exc:
-                            msg = "Claude SDK returned non-JSON decision output"
+                            # Try to extract JSON - use a more robust approach
+                            text = message.result.strip()
+                            # Remove markdown code block markers if present
+                            if text.startswith("```"):
+                                text = re.sub(r"^```json?\n?", "", text)
+                                text = re.sub(r"\n?```$", "", text)
+                            text = text.strip()
+                            # Try to parse as-is first
+                            try:
+                                return RuntimeDecision.model_validate_json(text)
+                            except Exception:
+                                # Fallback: extract first { to last } pair
+                                start = text.find("{")
+                                end = text.rfind("}")
+                                if start != -1 and end != -1 and end > start:
+                                    json_str = text[start : end + 1]
+                                    return RuntimeDecision.model_validate_json(json_str)
+                                raise ValueError("No valid JSON found in response")
+                        except (json.JSONDecodeError, ValidationError) as exc:
+                            msg = f"Failed to parse decision JSON: {exc}"
                             raise RuntimeError(msg) from exc
         except asyncio.CancelledError as exc:
             msg = "Claude SDK decision cancelled"
             raise RuntimeError(msg) from exc
+        except RuntimeError:
+            raise
         except Exception as exc:
             msg = f"Claude SDK decision failed: {exc}"
             raise RuntimeError(msg) from exc
