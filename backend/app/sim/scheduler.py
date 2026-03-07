@@ -57,7 +57,15 @@ class SimulationScheduler:
         if scheduled and scheduled.task:
             info(f"Stopping scheduler for run {run_id}")
             scheduled.task.cancel()
-            # Don't await the task here to avoid cancellation scope issues
+            # Await the task to properly handle cancellation and avoid "Task exception was never retrieved"
+            # The cancel scope errors from claude_agent_sdk are now handled in providers.py
+            try:
+                await scheduled.task
+            except asyncio.CancelledError:
+                pass
+            except RuntimeError as e:
+                if "cancel scope" not in str(e).lower():
+                    error(f"Unexpected error stopping run {run_id}: {e}")
 
     def is_running(self, run_id: str) -> bool:
         """Check if a run is being automatically scheduled."""

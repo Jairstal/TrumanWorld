@@ -149,9 +149,11 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
         # Call SDK and parse result
         # Note: We don't use asyncio.shield here because it causes issues with SQLAlchemy's greenlet
         result_decision: RuntimeDecision | None = None
+        gen = None
 
         try:
-            async for message in query(prompt=full_prompt, options=options):
+            gen = query(prompt=full_prompt, options=options)
+            async for message in gen:
                 if isinstance(message, ResultMessage):
                     if message.is_error:
                         msg = message.result or "Claude SDK decision failed"
@@ -191,6 +193,14 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
                 logger.debug(f"Claude SDK cancel scope error for agent {invocation.agent_id}: {e}")
                 return RuntimeDecision(action_type="rest")
             raise
+        finally:
+            # Properly close the async generator to avoid "cancel scope in different task" errors
+            if gen is not None:
+                try:
+                    await gen.aclose()
+                except RuntimeError as e:
+                    if "cancel scope" not in str(e).lower():
+                        raise
 
         if result_decision is None:
             msg = "Claude SDK returned no decision"

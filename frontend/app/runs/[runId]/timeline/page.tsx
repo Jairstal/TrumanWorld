@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { SectionCard } from "@/components/section-card";
 import { getTimeline, type TimelineEvent } from "@/lib/api";
 
 type TimelinePageProps = {
@@ -60,26 +59,25 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
   const timeline = await getTimeline(runId);
 
   return (
-    <main className="min-h-screen px-6 py-12">
-      <div className="mx-auto max-w-5xl space-y-8">
-        <header className="space-y-3">
-          <Link href={`/runs/${runId}`} className="text-sm uppercase tracking-[0.25em] text-moss">
-            Run Detail
-          </Link>
-          <h1 className="text-4xl font-semibold text-ink">Timeline</h1>
-          <p className="max-w-2xl text-slate-700">按 tick 查看该运行中已经写入数据库的结构化事件。</p>
-        </header>
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* 顶部标题栏 */}
+      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/60 px-8 py-5 backdrop-blur">
+        <Link href={`/runs/${runId}`} className="text-xs uppercase tracking-[0.25em] text-moss hover:text-ink">
+          ← Run Detail
+        </Link>
+        <h1 className="mt-1 text-2xl font-semibold text-ink">Timeline</h1>
+      </div>
 
-        <SectionCard
-          title="Events"
-          description="按 tick 时序排列的小镇事件流，以叙事方式呈现。"
-        >
+      {/* 滚动内容区 */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl px-8 py-6">
           <div className="space-y-2">
             {timeline.events.length === 0 ? (
-              <p className="text-sm text-slate-600">暂无事件。</p>
+              <div className="rounded-2xl border border-slate-100 bg-white/60 px-6 py-12 text-center text-sm text-slate-500">
+                暂无事件。世界运行后居民的行为会展示在这里。
+              </div>
             ) : (
               (() => {
-                // Group events by tick
                 const groups = timeline.events.reduce<Record<number, typeof timeline.events>>(
                   (acc, ev) => {
                     (acc[ev.tick_no] ??= []).push(ev);
@@ -91,7 +89,7 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
                   .sort(([a], [b]) => Number(b) - Number(a))
                   .map(([tick, events]) => (
                     <div key={tick} className="space-y-1">
-                      <div className="sticky top-0 z-10 flex items-center gap-3 bg-gradient-to-r from-white to-transparent py-2">
+                      <div className="sticky top-0 z-10 flex items-center gap-3 bg-gradient-to-r from-[#f4f0e8] to-transparent py-2">
                         <span className="rounded-full bg-moss/10 px-3 py-0.5 text-xs font-semibold uppercase tracking-widest text-moss">
                           Tick {tick}
                         </span>
@@ -126,9 +124,9 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
               })()
             )}
           </div>
-        </SectionCard>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
 

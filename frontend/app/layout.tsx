@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { ReactNode } from "react";
+import { AppShell } from "@/components/app-shell";
 
 export const metadata: Metadata = {
   title: "AI Truman World",
@@ -10,8 +11,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body className="h-screen overflow-hidden">
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }
-

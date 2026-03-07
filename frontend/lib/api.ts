@@ -56,16 +56,30 @@ export type AgentDetails = {
   occupation?: string;
   current_goal?: string;
   status?: Record<string, unknown>;
-  recent_events: TimelineEvent[];
+  recent_events: Array<{
+    id: string;
+    tick_no: number;
+    event_type: string;
+    actor_agent_id?: string;
+    actor_name?: string;
+    target_agent_id?: string;
+    target_name?: string;
+    location_id?: string;
+    location_name?: string;
+    payload: Record<string, unknown>;
+  }>;
   memories: Array<{
     id: string;
     memory_type: string;
     summary?: string;
     content: string;
     importance?: number;
+    related_agent_id?: string;
+    related_agent_name?: string;
   }>;
   relationships: Array<{
     other_agent_id: string;
+    other_agent_name?: string;
     familiarity: number;
     trust: number;
     affinity: number;
