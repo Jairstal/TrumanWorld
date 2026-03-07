@@ -181,7 +181,9 @@ class SimulationService:
             current_plan={"morning": "socialize"},
         )
 
-        self.session.add_all([plaza, cafe, alice, bob])
+        self.session.add_all([plaza, cafe])
+        await self.session.flush()
+        self.session.add_all([alice, bob])
         await self.session.commit()
 
     async def _load_world(self, run_id: str, tick_minutes: int) -> WorldState:
