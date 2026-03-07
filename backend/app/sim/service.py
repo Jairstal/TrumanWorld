@@ -164,7 +164,7 @@ class SimulationService:
 
         # Phase 2: Prepare intents (SDK calls happen here, no active session)
         if not intents:
-            intents = await self._prepare_intents_from_data(world, agent_data)
+            intents = await self._prepare_intents_from_data(world, agent_data, engine, run_id)
 
         # Run simulation logic
         runner = SimulationRunner(world)
@@ -181,6 +181,8 @@ class SimulationService:
         self,
         world: WorldState,
         agent_data: list[dict],
+        engine: "async_engine | None" = None,
+        run_id: str | None = None,
     ) -> list[ActionIntent]:
         """Prepare intents from pre-loaded agent data.
 
@@ -188,8 +190,10 @@ class SimulationService:
         allowing SDK calls to use anyio without greenlet conflicts.
 
         Agent decisions are made in PARALLEL for performance.
+        Memory tools are available via MCP if engine is provided.
         """
         import asyncio
+        from app.agent.runtime import RuntimeContext
 
         async def decide_for_agent(agent_dict: dict) -> ActionIntent:
             """Make decision for a single agent."""
@@ -202,6 +206,15 @@ class SimulationService:
             profile = agent_dict.get("profile", {})
             runtime_agent_id = profile.get("agent_config_id") or agent_id
 
+            # Build runtime context with memory tools support
+            runtime_ctx = None
+            if engine is not None and run_id is not None:
+                runtime_ctx = RuntimeContext(
+                    db_engine=engine,
+                    run_id=run_id,
+                    enable_memory_tools=True,
+                )
+
             try:
                 intent = await self.agent_runtime.react(
                     runtime_agent_id,
@@ -211,8 +224,9 @@ class SimulationService:
                         "home_location_id": agent_dict.get("home_location_id"),
                         "nearby_agent_id": nearby_agent_id,
                     },
-                    memory={"recent": []},
+                    memory={"recent": []},  # Memory tools available via MCP
                     event={},
+                    runtime_ctx=runtime_ctx,
                 )
                 intent.agent_id = agent_id
                 return intent

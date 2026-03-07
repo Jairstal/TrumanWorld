@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging
@@ -11,13 +9,14 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
+from claude_agent_sdk.types import McpSdkServerConfig
 from pydantic import BaseModel, Field, ValidationError
 
 from app.infra.settings import Settings
 
 if TYPE_CHECKING:
     from app.agent.connection_pool import AgentConnectionPool
-    from app.agent.runtime import RuntimeInvocation
+    from app.agent.runtime import RuntimeContext, RuntimeInvocation
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,11 @@ class RuntimeDecision(BaseModel):
 
 class AgentDecisionProvider(ABC):
     @abstractmethod
-    async def decide(self, invocation: Any) -> RuntimeDecision:
+    async def decide(
+        self,
+        invocation: Any,
+        runtime_ctx: "RuntimeContext | None" = None,
+    ) -> RuntimeDecision:
         raise NotImplementedError
 
 
@@ -71,7 +74,11 @@ class HeuristicDecisionProvider(AgentDecisionProvider):
         "一起喝杯咖啡吧?",
     ]
 
-    async def decide(self, invocation: Any) -> RuntimeDecision:
+    async def decide(
+        self,
+        invocation: Any,
+        runtime_ctx: "RuntimeContext | None" = None,
+    ) -> RuntimeDecision:
         import random
 
         world = invocation.context.get("world", {})
@@ -111,7 +118,7 @@ class HeuristicDecisionProvider(AgentDecisionProvider):
 
 
 class ClaudeSDKDecisionProvider(AgentDecisionProvider):
-    """Claude SDK 决策提供者，支持连接池复用。"""
+    """Claude SDK 决策提供者，支持连接池复用和 MCP memory tools。"""
 
     def __init__(
         self,
@@ -121,7 +128,11 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
         self.settings = settings
         self._pool = connection_pool
 
-    def _build_sdk_options(self, invocation: RuntimeInvocation) -> ClaudeAgentOptions:
+    def _build_sdk_options(
+        self,
+        invocation: RuntimeInvocation,
+        runtime_ctx: "RuntimeContext | None" = None,
+    ) -> ClaudeAgentOptions:
         """Build SDK options for a single invocation."""
         env = {}
         if self.settings.anthropic_api_key:
@@ -135,15 +146,39 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
             if invocation.max_budget_usd >= 0.1
             else self.settings.agent_budget_usd
         )
-        return ClaudeAgentOptions(
+        
+        options = ClaudeAgentOptions(
             max_turns=invocation.max_turns,
             max_budget_usd=budget,
             model=self.settings.agent_model,
             cwd=str(self.settings.project_root),
             env=env,
         )
+        
+        # Add MCP memory server if runtime context provides database engine
+        if runtime_ctx and runtime_ctx.db_engine and runtime_ctx.enable_memory_tools:
+            from app.agent.memory_mcp_server import create_memory_mcp_server
+            
+            memory_server = create_memory_mcp_server(
+                engine=runtime_ctx.db_engine,
+                agent_id=invocation.agent_id,
+                run_id=runtime_ctx.run_id or "",
+            )
+            options.mcp_servers = {
+                "trumanworld-memory": McpSdkServerConfig(
+                    type="sdk",
+                    name="trumanworld-memory",
+                    instance=memory_server,
+                )
+            }
+        
+        return options
 
-    async def decide(self, invocation: RuntimeInvocation) -> RuntimeDecision:
+    async def decide(
+        self,
+        invocation: RuntimeInvocation,
+        runtime_ctx: "RuntimeContext | None" = None,
+    ) -> RuntimeDecision:
         """Make a decision using Claude SDK.
 
         支持两种模式:
@@ -152,12 +187,16 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
         """
         if self._pool and self._pool.is_warmed_up(invocation.agent_id):
             logger.debug(f"Using POOLED connection for agent: {invocation.agent_id}")
-            return await self._decide_with_pool(invocation)
+            return await self._decide_with_pool(invocation, runtime_ctx=runtime_ctx)
         else:
             logger.debug(f"Using QUERY mode (new process) for agent: {invocation.agent_id}")
-            return await self._decide_with_query(invocation)
+            return await self._decide_with_query(invocation, runtime_ctx=runtime_ctx)
 
-    async def _decide_with_pool(self, invocation: RuntimeInvocation) -> RuntimeDecision:
+    async def _decide_with_pool(
+        self,
+        invocation: RuntimeInvocation,
+        runtime_ctx: "RuntimeContext | None" = None,
+    ) -> RuntimeDecision:
         """使用连接池的客户端进行决策"""
         from claude_agent_sdk import AssistantMessage
 
@@ -216,7 +255,11 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
         finally:
             await self._pool.release(invocation.agent_id)
 
-    async def _decide_with_query(self, invocation: RuntimeInvocation) -> RuntimeDecision:
+    async def _decide_with_query(
+        self,
+        invocation: RuntimeInvocation,
+        runtime_ctx: "RuntimeContext | None" = None,
+    ) -> RuntimeDecision:
         """使用 query() 进行决策（原有逻辑)"""
         result_decision: RuntimeDecision | None = None
         gen = None
@@ -225,7 +268,7 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
             msg = "Claude CLI is not available in the current environment"
             raise RuntimeError(msg)
 
-        options = self._build_sdk_options(invocation)
+        options = self._build_sdk_options(invocation, runtime_ctx=runtime_ctx)
 
         # Build prompt that asks for JSON response
         json_schema = json.dumps(DECISION_OUTPUT_SCHEMA, indent=2)

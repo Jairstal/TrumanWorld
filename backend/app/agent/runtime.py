@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -20,12 +21,13 @@ from app.infra.settings import get_settings
 from app.sim.action_resolver import ActionIntent
 
 if TYPE_CHECKING:
-    pass
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = get_logger(__name__)
 
 
 class RuntimeInvocation(BaseModel):
+    """Serializable invocation parameters."""
     agent_id: str
     task: str
     prompt: str
@@ -33,6 +35,18 @@ class RuntimeInvocation(BaseModel):
     max_turns: int
     max_budget_usd: float
     allowed_actions: list[str] = []
+
+
+@dataclass
+class RuntimeContext:
+    """Runtime context holding non-serializable resources.
+    
+    This class holds resources that cannot be serialized (like database engines)
+    and should be passed alongside RuntimeInvocation.
+    """
+    db_engine: "AsyncEngine | None" = None
+    run_id: str | None = None
+    enable_memory_tools: bool = True
 
 
 class AgentRuntime:
@@ -140,8 +154,12 @@ class AgentRuntime:
             max_budget_usd=config.model.max_budget_usd,
         )
 
-    async def decide_intent(self, invocation: RuntimeInvocation) -> ActionIntent:
-        decision = await self.decision_provider.decide(invocation)
+    async def decide_intent(
+        self,
+        invocation: RuntimeInvocation,
+        runtime_ctx: RuntimeContext | None = None,
+    ) -> ActionIntent:
+        decision = await self.decision_provider.decide(invocation, runtime_ctx=runtime_ctx)
         # 将 message 合并到 payload 中，以便传递到 event
         payload = dict(decision.payload)
         if decision.message:
@@ -162,9 +180,10 @@ class AgentRuntime:
         world: dict[str, Any] | None = None,
         memory: dict[str, Any] | None = None,
         event: dict[str, Any] | None = None,
+        runtime_ctx: RuntimeContext | None = None,
     ) -> ActionIntent:
         invocation = self.prepare_reactor(agent_id, world=world, memory=memory, event=event)
-        return await self.decide_intent(invocation)
+        return await self.decide_intent(invocation, runtime_ctx=runtime_ctx)
 
     def derive_intent(self, invocation: RuntimeInvocation) -> ActionIntent:
         world = invocation.context.get("world", {})

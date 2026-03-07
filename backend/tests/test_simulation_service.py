@@ -11,12 +11,12 @@ from app.store.repositories import AgentRepository, EventRepository, RunReposito
 
 
 class FailingDecisionProvider(AgentDecisionProvider):
-    async def decide(self, invocation: RuntimeInvocation):
+    async def decide(self, invocation: RuntimeInvocation, runtime_ctx=None):
         raise RuntimeError("provider unavailable")
 
 
 class CancelledDecisionProvider(AgentDecisionProvider):
-    async def decide(self, invocation: RuntimeInvocation):
+    async def decide(self, invocation: RuntimeInvocation, runtime_ctx=None):
         raise asyncio.CancelledError
 
 
@@ -24,7 +24,7 @@ class RecordingDecisionProvider(AgentDecisionProvider):
     def __init__(self) -> None:
         self.agent_ids: list[str] = []
 
-    async def decide(self, invocation: RuntimeInvocation):
+    async def decide(self, invocation: RuntimeInvocation, runtime_ctx=None):
         self.agent_ids.append(invocation.agent_id)
         world = invocation.context.get("world", {})
         goal = world.get("current_goal")

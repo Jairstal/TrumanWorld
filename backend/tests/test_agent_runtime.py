@@ -44,7 +44,7 @@ def runtime(tmp_path: Path) -> AgentRuntime:
 
 
 class StubDecisionProvider(AgentDecisionProvider):
-    async def decide(self, invocation):
+    async def decide(self, invocation, runtime_ctx=None):
         return RuntimeDecision(
             action_type="talk",
             target_agent_id="bob",
