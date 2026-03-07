@@ -295,9 +295,7 @@ async def test_heuristic_provider_generates_message_for_talk(runtime: AgentRunti
 
 @pytest.mark.asyncio
 async def test_truman_suspicion_changes_heuristic_decision(runtime: AgentRuntime):
-    runtime.decision_provider = HeuristicDecisionProvider(
-        decision_hook=build_truman_world_decision
-    )
+    runtime.decision_provider = HeuristicDecisionProvider(decision_hook=build_truman_world_decision)
     invocation = runtime.prepare_reactor(
         "demo_agent",
         world={
@@ -319,9 +317,7 @@ async def test_truman_suspicion_changes_heuristic_decision(runtime: AgentRuntime
 
 @pytest.mark.asyncio
 async def test_cast_stabilizes_when_truman_suspicion_is_high(runtime: AgentRuntime):
-    runtime.decision_provider = HeuristicDecisionProvider(
-        decision_hook=build_truman_world_decision
-    )
+    runtime.decision_provider = HeuristicDecisionProvider(decision_hook=build_truman_world_decision)
     invocation = runtime.prepare_reactor(
         "demo_agent",
         world={

@@ -1,11 +1,11 @@
+# Truman World
+
 ![Python](https://img.shields.io/badge/Python-3.12+-blue?logo=python)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green?logo=node.js)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 ![Status](https://img.shields.io/badge/Status-MVP-orange)
 [![CI](https://github.com/gqy20/TrumanWorld/actions/workflows/ci.yml/badge.svg)](https://github.com/gqy20/TrumanWorld/actions/workflows/ci.yml)
 [![Coverage](https://codecov.io/gh/gqy20/TrumanWorld/branch/main/graph/badge.svg)](https://codecov.io/gh/gqy20/TrumanWorld)
-
-# AI Truman World
 
 > 你就是楚门世界的导演
 

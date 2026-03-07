@@ -26,7 +26,9 @@ class DirectorPlanner:
         assessment: DirectorAssessment,
         agents: list[Agent],
     ) -> DirectorPlan | None:
-        cast_agents = [agent for agent in agents if (agent.profile or {}).get("world_role") == "cast"]
+        cast_agents = [
+            agent for agent in agents if (agent.profile or {}).get("world_role") == "cast"
+        ]
         if not cast_agents or assessment.truman_agent_id is None:
             return None
 

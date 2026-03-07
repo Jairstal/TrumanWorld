@@ -72,10 +72,7 @@ def _build_cast_stabilizing_decision(
         return RuntimeDecision(
             action_type="talk",
             target_agent_id=str(nearby_agent_id),
-            message=(
-                "我刚刚也在忙日常那些事，可能只是节奏有点乱。"
-                "要不要先顺着手头的安排慢慢来？"
-            ),
+            message=("我刚刚也在忙日常那些事，可能只是节奏有点乱。要不要先顺着手头的安排慢慢来？"),
             payload={"guidance_priority": guidance_priority or "advisory"},
         )
 

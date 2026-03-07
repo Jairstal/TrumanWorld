@@ -138,9 +138,7 @@ async def create_run(
             agent_key = config_id if config_id else a.id
             pool_keys.add(f"{created.id}:{agent_key}")
         if pool_keys:
-            logger.info(
-                f"Warming up connection pool for {len(pool_keys)} agents: {pool_keys}"
-            )
+            logger.info(f"Warming up connection pool for {len(pool_keys)} agents: {pool_keys}")
             await pool.warmup(list(pool_keys))
 
         # Create agent runtime with connection pool
@@ -154,7 +152,12 @@ async def create_run(
         await scheduler.start_run(created.id, interval_seconds=5.0, callback=tick_callback)
         logger.info(f"Auto-scheduler started for run {created.id}")
 
-    return RunResponse(id=UUID(created.id), name=created.name, status=created.status, was_running_before_restart=created.was_running_before_restart)
+    return RunResponse(
+        id=UUID(created.id),
+        name=created.name,
+        status=created.status,
+        was_running_before_restart=created.was_running_before_restart,
+    )
 
 
 @router.get(
@@ -232,9 +235,7 @@ async def restore_all_runs(
                     pool_keys.add(f"{run.id}:{agent_key}")
 
                 if pool_keys:
-                    logger.info(
-                        f"Warming up connection pool for run {run.id}: {pool_keys}"
-                    )
+                    logger.info(f"Warming up connection pool for run {run.id}: {pool_keys}")
                     await pool.warmup(list(pool_keys))
 
                 agent_runtime = AgentRuntime(registry=registry, connection_pool=pool)
@@ -310,9 +311,7 @@ async def start_run(
             pool_keys.add(f"{run_id}:{agent_key}")
 
         if pool_keys:
-            logger.info(
-                f"Warming up connection pool for {len(pool_keys)} agents: {pool_keys}"
-            )
+            logger.info(f"Warming up connection pool for {len(pool_keys)} agents: {pool_keys}")
             await pool.warmup(list(pool_keys))
 
         # Create agent runtime with connection pool
@@ -326,7 +325,12 @@ async def start_run(
 
         await scheduler.start_run(str(run_id), interval_seconds=5.0, callback=tick_callback)
 
-    return RunResponse(id=run_id, name=updated.name, status=updated.status, was_running_before_restart=updated.was_running_before_restart)
+    return RunResponse(
+        id=run_id,
+        name=updated.name,
+        status=updated.status,
+        was_running_before_restart=updated.was_running_before_restart,
+    )
 
 
 @router.post(
@@ -356,7 +360,12 @@ async def pause_run(
     await pool.cleanup_run(str(run_id))
 
     updated = await repo.update_status(run, "paused")
-    return RunResponse(id=run_id, name=updated.name, status=updated.status, was_running_before_restart=updated.was_running_before_restart)
+    return RunResponse(
+        id=run_id,
+        name=updated.name,
+        status=updated.status,
+        was_running_before_restart=updated.was_running_before_restart,
+    )
 
 
 @router.post(
@@ -374,7 +383,12 @@ async def resume_run(
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     updated = await repo.update_status(run, "running")
-    return RunResponse(id=run_id, name=updated.name, status=updated.status, was_running_before_restart=updated.was_running_before_restart)
+    return RunResponse(
+        id=run_id,
+        name=updated.name,
+        status=updated.status,
+        was_running_before_restart=updated.was_running_before_restart,
+    )
 
 
 @router.post(

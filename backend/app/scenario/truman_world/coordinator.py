@@ -37,7 +37,9 @@ class TrumanWorldCoordinator:
 
         agents = await self.agent_repo.list_for_run(run_id)
         events = await self.event_repo.list_for_run(run_id, limit=event_limit)
-        return self.assess(run_id=run_id, current_tick=run.current_tick, agents=agents, events=events)
+        return self.assess(
+            run_id=run_id, current_tick=run.current_tick, agents=agents, events=events
+        )
 
     async def build_director_plan(self, run_id: str, agents: list[Agent]):
         assessment = await self.observe_run(run_id)

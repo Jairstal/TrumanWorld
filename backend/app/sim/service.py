@@ -82,7 +82,9 @@ class SimulationService:
         instance.agent_runtime = agent_runtime
         instance._context_builder = None  # type: ignore[assignment]
         instance._persistence = None  # type: ignore[assignment]
-        instance._scenario = scenario.with_session(None) if scenario is not None else TrumanWorldScenario()
+        instance._scenario = (
+            scenario.with_session(None) if scenario is not None else TrumanWorldScenario()
+        )
         instance._scenario.configure_runtime(agent_runtime)
         return instance
 
@@ -291,7 +293,9 @@ class SimulationService:
                             profile.get("world_role") if isinstance(profile, dict) else None
                         ),
                         director_scene_goal=(
-                            profile.get("director_scene_goal") if isinstance(profile, dict) else None
+                            profile.get("director_scene_goal")
+                            if isinstance(profile, dict)
+                            else None
                         ),
                         director_priority=(
                             profile.get("director_priority") if isinstance(profile, dict) else None
