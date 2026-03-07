@@ -12,6 +12,8 @@ from app.agent.providers import (
     AgentDecisionProvider,
     ClaudeSDKDecisionProvider,
     HeuristicDecisionProvider,
+    build_cast_stabilizing_decision,
+    build_suspicion_aware_decision,
     build_default_talk_message,
 )
 from app.agent.prompt_loader import PromptLoader
@@ -206,6 +208,40 @@ class AgentRuntime:
                 agent_id=invocation.agent_id,
                 action_type="move",
                 target_location_id=target_location_id,
+            )
+
+        suspicion_decision = build_suspicion_aware_decision(
+            world=world,
+            nearby_agent_id=nearby_agent_id,
+            current_location_id=current_location_id,
+            home_location_id=home_location_id,
+        )
+        if suspicion_decision is not None:
+            payload = dict(suspicion_decision.payload)
+            if suspicion_decision.message:
+                payload["message"] = suspicion_decision.message
+            return ActionIntent(
+                agent_id=invocation.agent_id,
+                action_type=suspicion_decision.action_type,
+                target_location_id=suspicion_decision.target_location_id,
+                target_agent_id=suspicion_decision.target_agent_id,
+                payload=payload,
+            )
+
+        cast_decision = build_cast_stabilizing_decision(
+            world=world,
+            nearby_agent_id=nearby_agent_id,
+        )
+        if cast_decision is not None:
+            payload = dict(cast_decision.payload)
+            if cast_decision.message:
+                payload["message"] = cast_decision.message
+            return ActionIntent(
+                agent_id=invocation.agent_id,
+                action_type=cast_decision.action_type,
+                target_location_id=cast_decision.target_location_id,
+                target_agent_id=cast_decision.target_agent_id,
+                payload=payload,
             )
 
         if goal == "work":

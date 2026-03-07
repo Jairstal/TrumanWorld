@@ -32,10 +32,20 @@ class ActionResolver:
     def resolve(self, world: WorldState, intent: ActionIntent) -> ActionResult:
         agent = world.get_agent(intent.agent_id)
         if agent is None:
-            return ActionResult(False, intent.action_type, "agent_not_found")
+            return ActionResult(
+                False,
+                intent.action_type,
+                "agent_not_found",
+                event_payload={"agent_id": intent.agent_id, **intent.payload},
+            )
 
         if intent.action_type not in self.SUPPORTED_ACTIONS:
-            return ActionResult(False, intent.action_type, "unsupported_action")
+            return ActionResult(
+                False,
+                intent.action_type,
+                "unsupported_action",
+                event_payload={"agent_id": intent.agent_id, **intent.payload},
+            )
 
         if intent.action_type == "move":
             return self._resolve_move(world, intent)
@@ -52,20 +62,54 @@ class ActionResolver:
     def _resolve_move(self, world: WorldState, intent: ActionIntent) -> ActionResult:
         agent = world.get_agent(intent.agent_id)
         if agent is None:
-            return ActionResult(False, "move", "agent_not_found")
+            return ActionResult(
+                False,
+                "move",
+                "agent_not_found",
+                event_payload={"agent_id": intent.agent_id},
+            )
 
         if intent.target_location_id is None:
-            return ActionResult(False, "move", "missing_target_location")
+            return ActionResult(
+                False,
+                "move",
+                "missing_target_location",
+                event_payload={"agent_id": intent.agent_id},
+            )
 
         destination = world.get_location(intent.target_location_id)
         if destination is None:
-            return ActionResult(False, "move", "location_not_found")
+            return ActionResult(
+                False,
+                "move",
+                "location_not_found",
+                event_payload={
+                    "agent_id": intent.agent_id,
+                    "target_location_id": intent.target_location_id,
+                },
+            )
 
         if agent.location_id == intent.target_location_id:
-            return ActionResult(False, "move", "already_at_location")
+            return ActionResult(
+                False,
+                "move",
+                "already_at_location",
+                event_payload={
+                    "agent_id": intent.agent_id,
+                    "target_location_id": intent.target_location_id,
+                },
+            )
 
         if len(destination.occupants) >= destination.capacity:
-            return ActionResult(False, "move", "location_full")
+            return ActionResult(
+                False,
+                "move",
+                "location_full",
+                event_payload={
+                    "agent_id": intent.agent_id,
+                    "target_location_id": intent.target_location_id,
+                },
+            )
 
         origin_id = agent.location_id
         world.move_agent(intent.agent_id, intent.target_location_id)
@@ -84,11 +128,32 @@ class ActionResolver:
         agent = world.get_agent(intent.agent_id)
         target = world.get_agent(intent.target_agent_id or "")
         if agent is None:
-            return ActionResult(False, "talk", "agent_not_found")
+            return ActionResult(
+                False,
+                "talk",
+                "agent_not_found",
+                event_payload={"agent_id": intent.agent_id},
+            )
         if target is None:
-            return ActionResult(False, "talk", "target_not_found")
+            return ActionResult(
+                False,
+                "talk",
+                "target_not_found",
+                event_payload={
+                    "agent_id": intent.agent_id,
+                    "target_agent_id": intent.target_agent_id,
+                },
+            )
         if agent.location_id != target.location_id:
-            return ActionResult(False, "talk", "target_not_nearby")
+            return ActionResult(
+                False,
+                "talk",
+                "target_not_nearby",
+                event_payload={
+                    "agent_id": intent.agent_id,
+                    "target_agent_id": intent.target_agent_id,
+                },
+            )
 
         return ActionResult(
             accepted=True,

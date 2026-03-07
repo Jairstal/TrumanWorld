@@ -8,9 +8,15 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.providers import build_default_talk_message
+from app.agent.providers import (
+    build_cast_stabilizing_decision,
+    build_default_talk_message,
+    build_suspicion_aware_decision,
+)
 from app.agent.registry import AgentRegistry
 from app.agent.runtime import AgentRuntime
+from app.director.observer import DirectorAssessment, DirectorObserver
+from app.director.planner import DirectorPlanner
 from app.infra.settings import get_settings
 from app.sim.action_resolver import ActionIntent
 from app.sim.runner import SimulationRunner, TickResult
@@ -158,10 +164,33 @@ class SimulationService:
                 ]
 
             # Second pass: build agent_data
+            observer = DirectorObserver()
+            planner = DirectorPlanner()
+            assessment = observer.assess(
+                run_id=run_id,
+                current_tick=current_tick,
+                agents=list(agents),
+                events=[],
+            )
+            plan = planner.build_plan(assessment=assessment, agents=list(agents))
+
             for agent in agents:
                 location_id = agent.current_location_id or agent.home_location_id
                 if location_id is None:
                     location_id = next(iter(location_states.keys()), "unknown")
+
+                profile = dict(agent.profile or {})
+                if plan and agent.id in plan.target_cast_ids:
+                    profile.update(
+                        {
+                            "director_scene_goal": plan.scene_goal,
+                            "director_priority": plan.priority,
+                            "director_message_hint": plan.message_hint,
+                            "director_target_agent_id": plan.target_agent_id,
+                            "director_location_hint": plan.location_hint,
+                            "director_reason": plan.reason,
+                        }
+                    )
 
                 agent_data.append(
                     {
@@ -169,7 +198,7 @@ class SimulationService:
                         "current_goal": agent.current_goal,
                         "current_location_id": location_id,
                         "home_location_id": agent.home_location_id,
-                        "profile": agent.profile or {},
+                        "profile": profile,
                         "recent_events": agent_recent_events.get(agent.id, []),
                     }
                 )
@@ -224,6 +253,9 @@ class SimulationService:
             nearby_agent_id = self._find_nearby_agent(world, agent_id, state.location_id)
             profile = agent_dict.get("profile", {})
             runtime_agent_id = profile.get("agent_config_id") or agent_id
+            truman_suspicion_score = self._extract_truman_suspicion_from_agent_data(
+                agent_data, world
+            )
 
             # Build runtime context with memory tools support
             runtime_ctx = None
@@ -243,7 +275,35 @@ class SimulationService:
                         current_location_id=agent_dict.get("current_location_id"),
                         home_location_id=agent_dict.get("home_location_id"),
                         nearby_agent_id=nearby_agent_id,
-                        world_role=(profile.get("world_role") if isinstance(profile, dict) else None),
+                        current_status=state.status,
+                        truman_suspicion_score=truman_suspicion_score,
+                        world_role=(
+                            profile.get("world_role") if isinstance(profile, dict) else None
+                        ),
+                        director_scene_goal=(
+                            profile.get("director_scene_goal") if isinstance(profile, dict) else None
+                        ),
+                        director_priority=(
+                            profile.get("director_priority") if isinstance(profile, dict) else None
+                        ),
+                        director_message_hint=(
+                            profile.get("director_message_hint")
+                            if isinstance(profile, dict)
+                            else None
+                        ),
+                        director_target_agent_id=(
+                            profile.get("director_target_agent_id")
+                            if isinstance(profile, dict)
+                            else None
+                        ),
+                        director_location_hint=(
+                            profile.get("director_location_hint")
+                            if isinstance(profile, dict)
+                            else None
+                        ),
+                        director_reason=(
+                            profile.get("director_reason") if isinstance(profile, dict) else None
+                        ),
                     ),
                     memory={"recent": []},  # Memory tools available via MCP
                     event={},
@@ -259,6 +319,15 @@ class SimulationService:
                     current_location_id=agent_dict.get("current_location_id"),
                     home_location_id=agent_dict.get("home_location_id"),
                     nearby_agent_id=nearby_agent_id,
+                    world_role=(profile.get("world_role") if isinstance(profile, dict) else None),
+                    current_status=state.status,
+                    truman_suspicion_score=truman_suspicion_score,
+                    director_scene_goal=(
+                        profile.get("director_scene_goal") if isinstance(profile, dict) else None
+                    ),
+                    director_priority=(
+                        profile.get("director_priority") if isinstance(profile, dict) else None
+                    ),
                 )
 
         # Execute all agent decisions in PARALLEL
@@ -321,6 +390,7 @@ class SimulationService:
             persisted = await event_repo.create_many(events)
             await self._persist_tick_memories_with_session(session, run_id, persisted)
             await self._persist_tick_relationships_with_session(session, run_id, persisted)
+            await self._persist_truman_suspicion_with_session(session, run_id, persisted)
 
     async def _persist_tick_memories_with_session(
         self,
@@ -399,9 +469,34 @@ class SimulationService:
                 affinity_delta=0.05,
             )
 
+    async def _persist_truman_suspicion_with_session(
+        self,
+        session: AsyncSession,
+        run_id: str,
+        events: list[Event],
+    ) -> None:
+        agent_repo = AgentRepository(session)
+        agents = await agent_repo.list_for_run(run_id)
+        changed = False
+        for agent in agents:
+            if (agent.profile or {}).get("world_role") != "truman":
+                continue
+            delta = self._calculate_suspicion_delta(agent.id, events)
+            if delta == 0.0:
+                continue
+            status = dict(agent.status or {})
+            current = float(status.get("suspicion_score", 0.0))
+            status["suspicion_score"] = max(0.0, min(1.0, round(current + delta, 4)))
+            agent.status = status
+            changed = True
+        if changed:
+            await session.commit()
+
     async def prepare_tick_intents(self, run_id: str, world: WorldState) -> list[ActionIntent]:
         agents = await self.agent_repo.list_for_run(run_id)
         intents: list[ActionIntent] = []
+        truman_suspicion_score = self._extract_truman_suspicion_from_agents(agents, world)
+        plan = await self._build_director_plan(run_id, agents)
 
         for agent in agents:
             state = world.get_agent(agent.id)
@@ -410,6 +505,7 @@ class SimulationService:
 
             nearby_agent_id = self._find_nearby_agent(world, agent.id, state.location_id)
             runtime_agent_id = self._resolve_runtime_agent_id(agent)
+            profile = self._profile_with_director_plan(agent, plan)
             try:
                 intent = await self.agent_runtime.react(
                     runtime_agent_id,
@@ -419,7 +515,15 @@ class SimulationService:
                         current_location_id=state.location_id,
                         home_location_id=agent.home_location_id,
                         nearby_agent_id=nearby_agent_id,
-                        world_role=(agent.profile or {}).get("world_role"),
+                        current_status=state.status,
+                        truman_suspicion_score=truman_suspicion_score,
+                        world_role=profile.get("world_role"),
+                        director_scene_goal=profile.get("director_scene_goal"),
+                        director_priority=profile.get("director_priority"),
+                        director_message_hint=profile.get("director_message_hint"),
+                        director_target_agent_id=profile.get("director_target_agent_id"),
+                        director_location_hint=profile.get("director_location_hint"),
+                        director_reason=profile.get("director_reason"),
                     ),
                     memory={"recent": []},
                     event={},
@@ -434,6 +538,11 @@ class SimulationService:
                         current_location_id=state.location_id,
                         home_location_id=agent.home_location_id,
                         nearby_agent_id=nearby_agent_id,
+                        world_role=profile.get("world_role"),
+                        current_status=state.status,
+                        truman_suspicion_score=truman_suspicion_score,
+                        director_scene_goal=profile.get("director_scene_goal"),
+                        director_priority=profile.get("director_priority"),
                     )
                 )
 
@@ -471,6 +580,23 @@ class SimulationService:
         event.importance = importance
         event.visibility = "system"
         await self.event_repo.create(event)
+
+    async def observe_run(self, run_id: str, event_limit: int = 20) -> DirectorAssessment:
+        run = await self.run_repo.get(run_id)
+        if run is None:
+            msg = f"Run not found: {run_id}"
+            raise ValueError(msg)
+
+        agents = await self.agent_repo.list_for_run(run_id)
+        events = await self.event_repo.list_for_run(run_id, limit=event_limit)
+
+        observer = DirectorObserver()
+        return observer.assess(
+            run_id=run_id,
+            current_tick=run.current_tick,
+            agents=list(agents),
+            events=list(events),
+        )
 
     async def seed_demo_run(self, run_id: str) -> None:
         run = await self.run_repo.get(run_id)
@@ -666,18 +792,84 @@ class SimulationService:
         current_location_id: str | None,
         home_location_id: str | None,
         nearby_agent_id: str | None,
+        current_status: dict | None = None,
+        truman_suspicion_score: float = 0.0,
         world_role: str | None = None,
+        director_scene_goal: str | None = None,
+        director_priority: str | None = None,
+        director_message_hint: str | None = None,
+        director_target_agent_id: str | None = None,
+        director_location_hint: str | None = None,
+        director_reason: str | None = None,
     ) -> dict:
         context = {
             "current_goal": current_goal,
             "current_location_id": current_location_id,
             "home_location_id": home_location_id,
             "nearby_agent_id": nearby_agent_id,
+            "self_status": current_status or {},
+            "truman_suspicion_score": truman_suspicion_score,
             **world.time_context(),
         }
         if world_role:
             context["world_role"] = world_role
+        if director_scene_goal:
+            context["director_scene_goal"] = director_scene_goal
+            context["director_priority"] = director_priority or "advisory"
+            context["director_message_hint"] = director_message_hint
+            context["director_target_agent_id"] = director_target_agent_id
+            context["director_location_hint"] = director_location_hint
+            context["director_reason"] = director_reason
         return context
+
+    async def _build_director_plan(self, run_id: str, agents: list[Agent]):
+        assessment = await self.observe_run(run_id)
+        planner = DirectorPlanner()
+        return planner.build_plan(assessment=assessment, agents=list(agents))
+
+    def _profile_with_director_plan(self, agent: Agent, plan) -> dict:
+        profile = dict(agent.profile or {})
+        if plan and agent.id in plan.target_cast_ids:
+            profile.update(
+                {
+                    "director_scene_goal": plan.scene_goal,
+                    "director_priority": plan.priority,
+                    "director_message_hint": plan.message_hint,
+                    "director_target_agent_id": plan.target_agent_id,
+                    "director_location_hint": plan.location_hint,
+                    "director_reason": plan.reason,
+                }
+            )
+        return profile
+
+    def _extract_truman_suspicion_from_agent_data(
+        self,
+        agent_data: list[dict],
+        world: WorldState,
+    ) -> float:
+        for agent_dict in agent_data:
+            profile = agent_dict.get("profile", {}) or {}
+            if profile.get("world_role") != "truman":
+                continue
+            state = world.get_agent(agent_dict["id"])
+            if state is None:
+                continue
+            return float((state.status or {}).get("suspicion_score", 0.0) or 0.0)
+        return 0.0
+
+    def _extract_truman_suspicion_from_agents(
+        self,
+        agents: list[Agent],
+        world: WorldState,
+    ) -> float:
+        for agent in agents:
+            if (agent.profile or {}).get("world_role") != "truman":
+                continue
+            state = world.get_agent(agent.id)
+            if state is None:
+                continue
+            return float((state.status or {}).get("suspicion_score", 0.0) or 0.0)
+        return 0.0
 
     async def _persist_agent_locations(self, run_id: str, world: WorldState) -> None:
         agents = await self.agent_repo.list_for_run(run_id)
@@ -714,6 +906,7 @@ class SimulationService:
             persisted = await self.event_repo.create_many(events)
             await self._persist_tick_memories(run_id, persisted)
             await self._persist_tick_relationships(run_id, persisted)
+            await self._persist_truman_suspicion(run_id, persisted)
 
     async def _persist_tick_memories(self, run_id: str, events: list[Event]) -> None:
         agent_name_map = {a.id: a.name for a in await self.agent_repo.list_for_run(run_id)}
@@ -850,6 +1043,23 @@ class SimulationService:
                 affinity_delta=0.05,
             )
 
+    async def _persist_truman_suspicion(self, run_id: str, events: list[Event]) -> None:
+        agents = await self.agent_repo.list_for_run(run_id)
+        changed = False
+        for agent in agents:
+            if (agent.profile or {}).get("world_role") != "truman":
+                continue
+            delta = self._calculate_suspicion_delta(agent.id, events)
+            if delta == 0.0:
+                continue
+            status = dict(agent.status or {})
+            current = float(status.get("suspicion_score", 0.0))
+            status["suspicion_score"] = max(0.0, min(1.0, round(current + delta, 4)))
+            agent.status = status
+            changed = True
+        if changed:
+            await self.session.commit()
+
     def _find_nearby_agent(self, world: WorldState, agent_id: str, location_id: str) -> str | None:
         location = world.get_location(location_id)
         if location is None:
@@ -860,6 +1070,26 @@ class SimulationService:
                 return occupant_id
         return None
 
+    def _calculate_suspicion_delta(self, agent_id: str, events: list[Event]) -> float:
+        delta = 0.0
+        for event in events:
+            payload = event.payload or {}
+            involved = event.actor_agent_id == agent_id or event.target_agent_id == agent_id
+            if not involved and payload.get("agent_id") != agent_id:
+                continue
+
+            if event.event_type.endswith("_rejected"):
+                delta += 0.12
+            elif event.event_type.startswith("director_"):
+                delta += 0.2
+            elif event.event_type == "talk":
+                delta -= 0.02
+            elif event.event_type in {"rest", "work"}:
+                delta -= 0.01
+            elif event.event_type == "move":
+                delta -= 0.005
+        return delta
+
     def _fallback_intent(
         self,
         agent_id: str,
@@ -867,7 +1097,54 @@ class SimulationService:
         current_location_id: str,
         home_location_id: str | None,
         nearby_agent_id: str | None,
+        world_role: str | None = None,
+        current_status: dict | None = None,
+        truman_suspicion_score: float = 0.0,
+        director_scene_goal: str | None = None,
+        director_priority: str | None = None,
     ) -> ActionIntent:
+        suspicion_decision = build_suspicion_aware_decision(
+            world={
+                "world_role": world_role,
+                "self_status": current_status or {},
+            },
+            nearby_agent_id=nearby_agent_id,
+            current_location_id=current_location_id,
+            home_location_id=home_location_id,
+        )
+        if suspicion_decision is not None:
+            payload = dict(suspicion_decision.payload)
+            if suspicion_decision.message:
+                payload["message"] = suspicion_decision.message
+            return ActionIntent(
+                agent_id=agent_id,
+                action_type=suspicion_decision.action_type,
+                target_location_id=suspicion_decision.target_location_id,
+                target_agent_id=suspicion_decision.target_agent_id,
+                payload=payload,
+            )
+
+        cast_decision = build_cast_stabilizing_decision(
+            world={
+                "world_role": world_role,
+                "truman_suspicion_score": truman_suspicion_score,
+                "director_scene_goal": director_scene_goal,
+                "director_priority": director_priority,
+            },
+            nearby_agent_id=nearby_agent_id,
+        )
+        if cast_decision is not None:
+            payload = dict(cast_decision.payload)
+            if cast_decision.message:
+                payload["message"] = cast_decision.message
+            return ActionIntent(
+                agent_id=agent_id,
+                action_type=cast_decision.action_type,
+                target_location_id=cast_decision.target_location_id,
+                target_agent_id=cast_decision.target_agent_id,
+                payload=payload,
+            )
+
         if isinstance(current_goal, str) and current_goal.startswith("move:"):
             return ActionIntent(
                 agent_id=agent_id,

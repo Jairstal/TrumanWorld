@@ -368,6 +368,35 @@ async def get_timeline(
 
 
 @router.get(
+    "/{run_id}/director/observation",
+    summary="获取导演观察",
+    description="获取只读导演观察结果，包括 Truman 怀疑度和世界连续性风险",
+)
+async def get_director_observation(
+    run_id: UUID,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, object]:
+    repo = RunRepository(session)
+    run = await repo.get(str(run_id))
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+
+    service = SimulationService(session)
+    assessment = await service.observe_run(str(run_id))
+
+    return {
+        "run_id": str(run_id),
+        "current_tick": assessment.current_tick,
+        "truman_agent_id": assessment.truman_agent_id,
+        "truman_suspicion_score": assessment.truman_suspicion_score,
+        "suspicion_level": assessment.suspicion_level,
+        "continuity_risk": assessment.continuity_risk,
+        "focus_agent_ids": assessment.focus_agent_ids,
+        "notes": assessment.notes,
+    }
+
+
+@router.get(
     "/{run_id}/world",
     summary="获取世界快照",
     description="获取模拟世界的实时快照，包括地点、agent 分布和最近事件",

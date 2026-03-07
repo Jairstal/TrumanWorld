@@ -64,6 +64,63 @@ def build_default_talk_message() -> str:
     return DEFAULT_TALK_MESSAGE
 
 
+def build_suspicion_aware_decision(
+    *,
+    world: dict[str, Any],
+    nearby_agent_id: str | None,
+    current_location_id: str | None,
+    home_location_id: str | None,
+) -> RuntimeDecision | None:
+    world_role = world.get("world_role")
+    self_status = world.get("self_status", {}) or {}
+    suspicion_score = float(self_status.get("suspicion_score", 0.0) or 0.0)
+
+    if world_role != "truman":
+        return None
+
+    if suspicion_score >= 0.9 and home_location_id and current_location_id != home_location_id:
+        return RuntimeDecision(action_type="move", target_location_id=str(home_location_id))
+
+    if suspicion_score >= 0.75 and nearby_agent_id:
+        return RuntimeDecision(
+            action_type="talk",
+            target_agent_id=str(nearby_agent_id),
+            message="今天总有点怪怪的，你刚刚有注意到什么吗？",
+        )
+
+    return None
+
+
+def build_cast_stabilizing_decision(
+    *,
+    world: dict[str, Any],
+    nearby_agent_id: str | None,
+) -> RuntimeDecision | None:
+    world_role = world.get("world_role")
+    truman_suspicion_score = float(world.get("truman_suspicion_score", 0.0) or 0.0)
+    scene_goal = world.get("director_scene_goal")
+    guidance_priority = world.get("director_priority")
+
+    if world_role != "cast":
+        return None
+
+    if scene_goal not in {"soft_check_in", "keep_scene_natural"}:
+        return None
+
+    if nearby_agent_id and truman_suspicion_score >= 0.8:
+        return RuntimeDecision(
+            action_type="talk",
+            target_agent_id=str(nearby_agent_id),
+            message=(
+                "我刚刚也在忙日常那些事，可能只是节奏有点乱。"
+                "要不要先顺着手头的安排慢慢来？"
+            ),
+            payload={"guidance_priority": guidance_priority or "advisory"},
+        )
+
+    return None
+
+
 class HeuristicDecisionProvider(AgentDecisionProvider):
     # 简单的问候语列表，用于启发式对话
     TALK_MESSAGES = [
@@ -93,6 +150,22 @@ class HeuristicDecisionProvider(AgentDecisionProvider):
                 action_type="move",
                 target_location_id=goal.split(":", 1)[1].strip(),
             )
+
+        suspicion_decision = build_suspicion_aware_decision(
+            world=world,
+            nearby_agent_id=nearby_agent_id,
+            current_location_id=current_location_id,
+            home_location_id=home_location_id,
+        )
+        if suspicion_decision is not None:
+            return suspicion_decision
+
+        cast_decision = build_cast_stabilizing_decision(
+            world=world,
+            nearby_agent_id=nearby_agent_id,
+        )
+        if cast_decision is not None:
+            return cast_decision
 
         if goal == "work":
             return RuntimeDecision(action_type="work")

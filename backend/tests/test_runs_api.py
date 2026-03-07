@@ -37,7 +37,7 @@ async def test_create_run_returns_running_status(client):
 
     agents_response = await client.get(f"/api/runs/{body['id']}/agents")
     assert agents_response.status_code == 200
-    assert len(agents_response.json()["agents"]) == 2
+    assert len(agents_response.json()["agents"]) == 4
 
 
 @pytest.mark.asyncio
@@ -112,9 +112,27 @@ async def test_get_world_snapshot_returns_locations_agents_and_public_events(cli
     assert world_response.status_code == 200
     body = world_response.json()
     assert body["run"]["id"] == run_id
-    assert len(body["locations"]) == 2
+    assert len(body["locations"]) == 4
     assert any(len(location["occupants"]) >= 1 for location in body["locations"])
     assert len(body["recent_events"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_get_director_observation_returns_assessment(client):
+    create_response = await client.post("/api/runs", json={"name": "observer-run"})
+    run_id = create_response.json()["id"]
+
+    await client.post(f"/api/runs/{run_id}/tick")
+    response = await client.get(f"/api/runs/{run_id}/director/observation")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["run_id"] == run_id
+    assert body["truman_agent_id"]
+    assert body["suspicion_level"] in {"low", "guarded", "alerted", "high"}
+    assert body["continuity_risk"] in {"stable", "watch", "elevated", "critical"}
+    assert isinstance(body["notes"], list)
+    assert isinstance(body["focus_agent_ids"], list)
 
 
 @pytest.mark.asyncio

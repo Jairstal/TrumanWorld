@@ -64,6 +64,7 @@ def test_runtime_prepare_planner(runtime: AgentRuntime):
     assert invocation.task == "planner"
     assert invocation.context["task"] == "planner"
     assert invocation.context["world"]["location"] == "cafe"
+    assert invocation.context["role_context"]["perspective"] == "supporting_cast"
     assert "运行上下文" in invocation.prompt
     assert '"location": "cafe"' in invocation.prompt
 
@@ -77,8 +78,78 @@ def test_runtime_prepare_reactor(runtime: AgentRuntime):
     assert invocation.task == "reactor"
     assert invocation.context["event"]["target"] == "bob"
     assert invocation.allowed_actions == ["move", "talk", "work", "rest"]
+    assert invocation.context["role_context"]["perspective"] == "supporting_cast"
     assert "只能返回一个 JSON 对象" in invocation.prompt
     assert '"task": "reactor"' in invocation.prompt
+
+
+def test_runtime_prepare_reactor_adds_truman_role_context(tmp_path: Path):
+    agent_dir = tmp_path / "truman"
+    agent_dir.mkdir(parents=True)
+    (agent_dir / "agent.yml").write_text(
+        "\n".join(
+            [
+                "id: truman",
+                "name: Truman",
+                "world_role: truman",
+                "occupation: resident",
+                "home: demo_home",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (agent_dir / "prompt.md").write_text("# Truman\nBase prompt", encoding="utf-8")
+
+    runtime = AgentRuntime(registry=AgentRegistry(tmp_path), context_builder=ContextBuilder())
+    invocation = runtime.prepare_reactor(
+        "truman",
+        world={
+            "current_goal": "rest",
+            "self_status": {"suspicion_score": 0.25},
+            "director_hint": "ignore-me",
+        },
+    )
+
+    assert invocation.context["world_role"] == "truman"
+    assert invocation.context["role_context"]["perspective"] == "subjective"
+    assert invocation.context["role_context"]["current_suspicion_score"] == 0.25
+    assert "director_hint" not in invocation.context["world"]
+
+
+def test_runtime_prepare_reactor_adds_cast_scene_guidance(tmp_path: Path):
+    agent_dir = tmp_path / "cast_agent"
+    agent_dir.mkdir(parents=True)
+    (agent_dir / "agent.yml").write_text(
+        "\n".join(
+            [
+                "id: cast_agent",
+                "name: Cast Agent",
+                "world_role: cast",
+                "occupation: resident",
+                "home: demo_home",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (agent_dir / "prompt.md").write_text("# Cast Agent\nBase prompt", encoding="utf-8")
+
+    runtime = AgentRuntime(registry=AgentRegistry(tmp_path), context_builder=ContextBuilder())
+    invocation = runtime.prepare_reactor(
+        "cast_agent",
+        world={
+            "current_goal": "rest",
+            "director_scene_goal": "soft_check_in",
+            "director_priority": "advisory",
+            "director_message_hint": "如果自然碰到 Truman，可以顺着熟悉话题聊几句",
+            "director_target_agent_id": "truman",
+            "director_reason": "Truman 怀疑度升高",
+        },
+    )
+
+    assert invocation.context["scene_guidance"]["scene_goal"] == "soft_check_in"
+    assert invocation.context["scene_guidance"]["priority"] == "advisory"
+    assert invocation.context["scene_guidance"]["target_agent_id"] == "truman"
+    assert invocation.context["scene_guidance"]["is_advisory"] is True
 
 
 def test_decision_prompt_requires_message_field_for_talk(runtime: AgentRuntime):
@@ -209,6 +280,50 @@ async def test_heuristic_provider_generates_message_for_talk(runtime: AgentRunti
     assert intent.target_agent_id == "bob"
     assert isinstance(intent.payload.get("message"), str)
     assert intent.payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_truman_suspicion_changes_heuristic_decision(runtime: AgentRuntime):
+    invocation = runtime.prepare_reactor(
+        "demo_agent",
+        world={
+            "world_role": "truman",
+            "current_goal": "work",
+            "current_location_id": "cafe",
+            "home_location_id": "home",
+            "nearby_agent_id": "bob",
+            "self_status": {"suspicion_score": 0.78},
+        },
+    )
+
+    intent = await runtime.decide_intent(invocation)
+
+    assert intent.action_type == "talk"
+    assert intent.target_agent_id == "bob"
+    assert "怪怪的" in intent.payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_cast_stabilizes_when_truman_suspicion_is_high(runtime: AgentRuntime):
+    invocation = runtime.prepare_reactor(
+        "demo_agent",
+        world={
+            "world_role": "cast",
+            "current_goal": "work",
+            "current_location_id": "cafe",
+            "home_location_id": "home",
+            "nearby_agent_id": "bob",
+            "truman_suspicion_score": 0.84,
+            "director_scene_goal": "soft_check_in",
+            "director_priority": "advisory",
+        },
+    )
+
+    intent = await runtime.decide_intent(invocation)
+
+    assert intent.action_type == "talk"
+    assert intent.target_agent_id == "bob"
+    assert "日常" in intent.payload["message"]
 
 
 def test_runtime_selects_claude_provider_from_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

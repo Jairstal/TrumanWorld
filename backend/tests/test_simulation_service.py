@@ -242,7 +242,9 @@ async def test_simulation_service_resolves_runtime_agent_id_from_profile(db_sess
 
 
 @pytest.mark.asyncio
-async def test_simulation_service_uses_world_role_and_clock_in_runtime_context(db_session, tmp_path):
+async def test_simulation_service_uses_world_role_and_clock_in_runtime_context(
+    db_session, tmp_path
+):
     run = SimulationRun(
         id="run-service-role-clock",
         name="service",
@@ -324,6 +326,57 @@ async def test_seed_demo_run_creates_truman_world_agents(db_session):
     profile_by_name = {agent.name: agent.profile for agent in agents}
     assert profile_by_name["Truman"]["world_role"] == "truman"
     assert profile_by_name["Meryl"]["world_role"] == "cast"
+
+
+@pytest.mark.asyncio
+async def test_simulation_service_updates_truman_suspicion_from_rejected_events(db_session):
+    run = SimulationRun(
+        id="run-truman-suspicion",
+        name="suspicion",
+        status="running",
+        current_tick=0,
+        tick_minutes=5,
+    )
+    home = Location(
+        id="loc-home-suspicion",
+        run_id="run-truman-suspicion",
+        name="Home",
+        location_type="home",
+        capacity=2,
+    )
+    truman = Agent(
+        id="truman-suspicion",
+        run_id="run-truman-suspicion",
+        name="Truman",
+        occupation="resident",
+        home_location_id="loc-home-suspicion",
+        current_location_id="loc-home-suspicion",
+        personality={},
+        profile={"world_role": "truman", "agent_config_id": "truman"},
+        status={"suspicion_score": 0.1},
+        current_plan={},
+    )
+
+    db_session.add_all([run, home, truman])
+    await db_session.commit()
+
+    service = SimulationService(db_session)
+    await service.run_tick(
+        "run-truman-suspicion",
+        [
+            ActionIntent(
+                agent_id="truman-suspicion",
+                action_type="move",
+                target_location_id="missing-location",
+            )
+        ],
+    )
+
+    await db_session.refresh(truman)
+    updated = await AgentRepository(db_session).get("truman-suspicion")
+
+    assert updated is not None
+    assert updated.status["suspicion_score"] > 0.1
 
 
 @pytest.mark.asyncio
