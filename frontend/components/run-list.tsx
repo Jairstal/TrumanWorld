@@ -10,6 +10,7 @@ type Run = {
   name: string;
   status: string;
   current_tick?: number;
+  was_running_before_restart?: boolean;
 };
 
 type RunListProps = {
@@ -98,17 +99,24 @@ export function RunList({ runs, onDeleteAll }: RunListProps) {
               </div>
 
               <div className="mt-5 flex items-center justify-between">
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                    isRunning
-                      ? "bg-emerald-50 text-emerald-700"
-                      : isPaused
-                      ? "bg-amber-50 text-amber-700"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  {isRunning ? "运行中" : isPaused ? "已暂停" : run.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      isRunning
+                        ? "bg-emerald-50 text-emerald-700"
+                        : isPaused
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {isRunning ? "运行中" : isPaused ? "已暂停" : run.status}
+                  </span>
+                  {run.was_running_before_restart && (
+                    <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-600">
+                      待恢复
+                    </span>
+                  )}
+                </div>
                 <span className="text-xs text-slate-400">
                   Tick <span className="font-medium text-slate-600">{run.current_tick ?? 0}</span>
                 </span>

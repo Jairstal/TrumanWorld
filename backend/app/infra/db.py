@@ -18,3 +18,9 @@ SessionLocal = async_sessionmaker(bind=async_engine, class_=AsyncSession, expire
 async def get_db_session() -> AsyncIterator[AsyncSession]:
     async with SessionLocal() as session:
         yield session
+
+
+async def get_db_session_context() -> AsyncIterator[AsyncSession]:
+    """Context manager version of get_db_session for use in lifespan events."""
+    async with SessionLocal() as session:
+        yield session

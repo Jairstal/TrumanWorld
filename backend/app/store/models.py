@@ -16,6 +16,8 @@ class SimulationRun(Base):
     current_tick: Mapped[int] = mapped_column(Integer, default=0)
     tick_minutes: Mapped[int] = mapped_column(Integer, default=5)
     world_seed: Mapped[int | None] = mapped_column(Integer)
+    # 标记服务重启前是否在运行中，用于一键恢复
+    was_running_before_restart: Mapped[bool] = mapped_column(default=False)
     metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

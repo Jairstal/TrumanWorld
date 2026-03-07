@@ -1,4 +1,5 @@
 import { CreateRunForm } from "@/components/create-run-form";
+import { RestoreBanner } from "@/components/restore-banner";
 import { RunList } from "@/components/run-list";
 import { listRuns } from "@/lib/api";
 
@@ -6,6 +7,7 @@ export default async function HomePage() {
   const runs = await listRuns();
   const hasRuns = runs.length > 0;
   const runningCount = runs.filter((r) => r.status === "running").length;
+  const needsRestoreCount = runs.filter((r) => r.was_running_before_restart).length;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -29,6 +31,8 @@ export default async function HomePage() {
 
       <div className="flex-1 overflow-y-auto p-8">
         <div className="mx-auto max-w-5xl space-y-8">
+          {needsRestoreCount > 0 && <RestoreBanner count={needsRestoreCount} />}
+
           <section className="overflow-hidden rounded-[32px] border border-white/60 bg-[linear-gradient(135deg,#172033,#24314a_52%,#365364)] text-white shadow-xl shadow-slate-900/10">
             <div className="flex flex-wrap items-center justify-between gap-6 p-8">
               <div className="max-w-2xl space-y-3">

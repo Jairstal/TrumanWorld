@@ -45,6 +45,9 @@ class RunResponse(BaseModel):
     status: str = Field(..., description="运行状态", examples=["running", "paused", "stopped"])
     current_tick: int | None = Field(None, description="当前 tick 数")
     tick_minutes: int | None = Field(None, description="每个 tick 代表的分钟数")
+    was_running_before_restart: bool = Field(
+        False, description="服务重启前是否在运行中（用于一键恢复）"
+    )
 
 
 class DirectorEventRequest(BaseModel):
@@ -150,7 +153,7 @@ async def create_run(
         await scheduler.start_run(created.id, interval_seconds=5.0, callback=tick_callback)
         logger.info(f"Auto-scheduler started for run {created.id}")
 
-    return RunResponse(id=UUID(created.id), name=created.name, status=created.status)
+    return RunResponse(id=UUID(created.id), name=created.name, status=created.status, was_running_before_restart=created.was_running_before_restart)
 
 
 @router.get(
@@ -173,9 +176,90 @@ async def list_runs(
             status=run.status,
             current_tick=run.current_tick,
             tick_minutes=run.tick_minutes,
+            was_running_before_restart=run.was_running_before_restart,
         )
         for run in runs
     ]
+
+
+@router.post(
+    "/restore-all",
+    response_model=list[RunResponse],
+    summary="恢复所有重启前的运行",
+    description="恢复服务重启前正在运行的所有模拟运行，自动启动 tick 调度",
+)
+async def restore_all_runs(
+    session: AsyncSession = Depends(get_db_session),
+) -> list[RunResponse]:
+    """Restore all runs that were running before server restart."""
+    logger.info("Restore all runs requested")
+    repo = RunRepository(session)
+    runs_to_restore = await repo.list_runs_to_restore()
+
+    if not runs_to_restore:
+        logger.info("No runs to restore")
+        return []
+
+    restored: list[RunResponse] = []
+    scheduler = get_scheduler()
+
+    for run in runs_to_restore:
+        try:
+            # Update status to running
+            updated = await repo.update_status(run, "running")
+
+            # Start scheduler if not already running
+            if not scheduler.is_running(str(run.id)):
+                from app.agent.connection_pool import get_connection_pool
+                from app.infra.db import async_engine
+                from app.sim.service import SimulationService
+                from app.agent.runtime import AgentRuntime
+                from app.agent.registry import AgentRegistry
+                from app.infra.settings import get_settings
+
+                settings = get_settings()
+                registry = AgentRegistry(settings.project_root / "agents")
+                pool = await get_connection_pool()
+
+                agent_repo = AgentRepository(session)
+                agents = await agent_repo.list_for_run(str(run.id))
+                runtime_agent_ids = set()
+                for a in agents:
+                    config_id = (a.profile or {}).get("agent_config_id")
+                    runtime_agent_ids.add(config_id if config_id else a.id)
+
+                if runtime_agent_ids:
+                    logger.info(
+                        f"Warming up connection pool for run {run.id}: {runtime_agent_ids}"
+                    )
+                    await pool.warmup(list(runtime_agent_ids))
+
+                agent_runtime = AgentRuntime(registry=registry, connection_pool=pool)
+
+                async def tick_callback(rid: str) -> None:
+                    service = SimulationService.create_for_scheduler(agent_runtime)
+                    await service.run_tick_isolated(rid, async_engine)
+
+                await scheduler.start_run(str(run.id), interval_seconds=5.0, callback=tick_callback)
+                logger.info(f"Scheduler started for restored run {run.id}")
+
+            # Clear the flag after successful restore
+            await repo.clear_was_running_flag(updated)
+            restored.append(
+                RunResponse(
+                    id=UUID(updated.id),
+                    name=updated.name,
+                    status=updated.status,
+                    current_tick=updated.current_tick,
+                    tick_minutes=updated.tick_minutes,
+                    was_running_before_restart=False,
+                )
+            )
+        except Exception as e:
+            logger.error(f"Failed to restore run {run.id}: {e}")
+
+    logger.info(f"Restored {len(restored)} runs")
+    return restored
 
 
 @router.post(
@@ -238,7 +322,7 @@ async def start_run(
 
         await scheduler.start_run(str(run_id), interval_seconds=5.0, callback=tick_callback)
 
-    return RunResponse(id=run_id, name=updated.name, status=updated.status)
+    return RunResponse(id=run_id, name=updated.name, status=updated.status, was_running_before_restart=updated.was_running_before_restart)
 
 
 @router.post(
@@ -262,7 +346,7 @@ async def pause_run(
     await scheduler.stop_run(str(run_id))
 
     updated = await repo.update_status(run, "paused")
-    return RunResponse(id=run_id, name=updated.name, status=updated.status)
+    return RunResponse(id=run_id, name=updated.name, status=updated.status, was_running_before_restart=updated.was_running_before_restart)
 
 
 @router.post(
@@ -280,7 +364,7 @@ async def resume_run(
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     updated = await repo.update_status(run, "running")
-    return RunResponse(id=run_id, name=updated.name, status=updated.status)
+    return RunResponse(id=run_id, name=updated.name, status=updated.status, was_running_before_restart=updated.was_running_before_restart)
 
 
 @router.post(

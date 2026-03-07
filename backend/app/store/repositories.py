@@ -51,6 +51,52 @@ class RunRepository:
         await self.session.delete(run)
         await self.session.commit()
 
+    async def reset_running_on_startup(self) -> list[SimulationRun]:
+        """Reset all running runs to paused on startup.
+
+        Sets was_running_before_restart=True for runs that were running,
+        then sets their status to 'paused'. Returns the list of affected runs.
+        """
+        from sqlalchemy import update
+
+        # First, get all running runs
+        stmt = select(SimulationRun).where(SimulationRun.status == "running")
+        result = await self.session.execute(stmt)
+        running_runs = list(result.scalars().all())
+
+        if not running_runs:
+            return []
+
+        # Update: set was_running_before_restart=True, status='paused'
+        run_ids = [run.id for run in running_runs]
+        await self.session.execute(
+            update(SimulationRun)
+            .where(SimulationRun.id.in_(run_ids))
+            .values(was_running_before_restart=True, status="paused")
+        )
+        await self.session.commit()
+
+        # Refresh and return
+        for run in running_runs:
+            await self.session.refresh(run)
+        return running_runs
+
+    async def list_runs_to_restore(self) -> Sequence[SimulationRun]:
+        """Get all runs that were running before restart and can be restored."""
+        stmt = select(SimulationRun).where(
+            SimulationRun.was_running_before_restart == True,
+            SimulationRun.status == "paused",
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def clear_was_running_flag(self, run: SimulationRun) -> SimulationRun:
+        """Clear the was_running_before_restart flag after successful restore."""
+        run.was_running_before_restart = False
+        await self.session.commit()
+        await self.session.refresh(run)
+        return run
+
 
 class EventRepository:
     def __init__(self, session: AsyncSession) -> None:

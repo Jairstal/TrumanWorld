@@ -1,11 +1,39 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
+from app.infra.db import async_engine, get_db_session_context
 from app.infra.logging import get_logger, info
 from app.infra.settings import get_settings
+from app.store.repositories import RunRepository
 
 logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler for startup and shutdown events."""
+    # Startup: Reset all running runs to paused
+    info("Application starting up, checking for running runs...")
+    try:
+        async for session in get_db_session_context():
+            repo = RunRepository(session)
+            reset_runs = await repo.reset_running_on_startup()
+            if reset_runs:
+                info(
+                    f"Reset {len(reset_runs)} running runs to paused (marked for restore): "
+                    f"{[r.id for r in reset_runs]}"
+                )
+            break  # Only need one session
+    except Exception as e:
+        logger.error(f"Failed to reset running runs on startup: {e}")
+
+    yield  # Application runs here
+
+    # Shutdown: cleanup if needed
+    info("Application shutting down")
 
 
 def create_app() -> FastAPI:
@@ -18,6 +46,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="AI Truman World API",
         version="0.1.0",
+        lifespan=lifespan,
         description="""
 ## AI Truman World - AI 社会模拟系统
 

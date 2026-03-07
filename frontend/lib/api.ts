@@ -4,6 +4,7 @@ export type RunSummary = {
   status: string;
   current_tick?: number;
   tick_minutes?: number;
+  was_running_before_restart?: boolean;
 };
 
 export type CreateRunResponse = {
@@ -225,4 +226,8 @@ async function safeDelete<T>(path: string, fallback: T): Promise<T> {
 
 export async function deleteRun(runId: string): Promise<{ run_id: string; status: string } | null> {
   return safeDelete<{ run_id: string; status: string } | null>(`/runs/${runId}`, null);
+}
+
+export async function restoreAllRuns(): Promise<RunSummary[]> {
+  return safePost<RunSummary[]>('/runs/restore-all', {}, []);
 }
