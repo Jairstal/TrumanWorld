@@ -15,7 +15,7 @@ from app.sim.runtime_context_utils import (
     build_agent_world_context,
     extract_truman_suspicion_from_agent_data,
 )
-from app.sim.world_queries import find_nearby_agent, get_agent, get_location
+from app.sim.world_queries import find_nearby_agent, get_agent
 from app.sim.world import AgentState, LocationState, WorldState
 from app.store.repositories import AgentRepository, EventRepository, LocationRepository
 

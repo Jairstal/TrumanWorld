@@ -38,7 +38,7 @@ from app.sim.runtime_context_utils import (
 )
 from app.sim.runner import SimulationRunner, TickResult
 from app.sim.types import AgentDecisionSnapshot
-from app.sim.world import AgentState, LocationState, WorldState
+from app.sim.world import WorldState
 from app.sim.world_loader import load_tick_data
 from app.sim.world_queries import find_nearby_agent, get_agent
 from app.store.repositories import (
