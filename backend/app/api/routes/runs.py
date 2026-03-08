@@ -275,7 +275,10 @@ async def start_run(
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     updated = await ensure_run_started(session, run)
-    return build_run_response(updated)
+    # Clear the restore flag now that the run is actively started
+    await repo.clear_was_running_flag(updated)
+    refreshed = await repo.get(updated.id)
+    return build_run_response(refreshed or updated)
 
 
 @router.post(
@@ -314,7 +317,10 @@ async def resume_run(
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     updated = await ensure_run_started(session, run)
-    return build_run_response(updated)
+    # Clear the restore flag now that the run is actively resumed
+    await repo.clear_was_running_flag(updated)
+    refreshed = await repo.get(updated.id)
+    return build_run_response(refreshed or updated)
 
 
 @router.post(

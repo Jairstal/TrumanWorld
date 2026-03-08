@@ -120,7 +120,7 @@ export function RunList({ runs }: RunListProps) {
                     {isRunning && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />}
                     {isRunning ? "运行中" : isPaused ? "已暂停" : run.status}
                   </span>
-                  {run.was_running_before_restart && (
+                  {run.was_running_before_restart && !isRunning && (
                     <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600 ring-1 ring-orange-200">
                       待恢复
                     </span>
