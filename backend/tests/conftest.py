@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.infra.db import Base, get_db_session
 from app.infra.settings import get_settings
 from app.main import create_app
+from app.sim.scheduler import get_scheduler
 
 
 @pytest_asyncio.fixture
@@ -56,3 +57,9 @@ def default_agent_provider(monkeypatch: pytest.MonkeyPatch):
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def cleanup_scheduler():
+    yield
+    await get_scheduler().stop_all()

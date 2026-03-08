@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import useSWR from "swr";
-import { buildApiUrl, fetchApiOrFallback } from "@/lib/api";
+import { buildApiUrl, fetchApiResult, type ApiResult } from "@/lib/api";
 import type { RunSummary } from "@/lib/types";
 
 type AppShellProps = {
@@ -27,13 +27,19 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: AppShellProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { data: runs } = useSWR<RunSummary[]>(
+  const { data: runsResult } = useSWR<ApiResult<RunSummary[]>>(
     buildApiUrl("/runs"),
-    (url: string) => fetchApiOrFallback<RunSummary[]>(url, []),
+    fetchApiResult,
     {
       refreshInterval: 10000,
+      fallbackData: {
+        data: [],
+        error: null,
+        status: null,
+      },
     },
   );
+  const runs = runsResult?.data ?? [];
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
@@ -86,6 +92,14 @@ export function AppShell({ children }: AppShellProps) {
               />
             ))}
           </div>
+
+          {!isCollapsed && runsResult?.error ? (
+            <div className="mt-4 px-3">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                {runsResult.error === "network_error" ? "运行列表暂时不可达" : "运行列表加载失败"}
+              </div>
+            </div>
+          ) : null}
 
           {!isCollapsed && runs && runs.length > 0 && (
             <div className="mt-4 px-3">

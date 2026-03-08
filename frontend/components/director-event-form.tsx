@@ -2,14 +2,14 @@
 
 import { useState, useTransition } from "react";
 
-import { injectDirectorEvent } from "@/lib/api";
+import { injectDirectorEventResult } from "@/lib/api";
 
 type DirectorEventFormProps = {
   runId: string;
 };
 
 export function DirectorEventForm({ runId }: DirectorEventFormProps) {
-  const [eventType, setEventType] = useState("broadcast");
+  const [eventType] = useState("broadcast");
   const [message, setMessage] = useState("Town hall at plaza");
   const [statusMessage, setStatusMessage] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -26,12 +26,18 @@ export function DirectorEventForm({ runId }: DirectorEventFormProps) {
       onSubmit={(event) => {
         event.preventDefault();
         startTransition(async () => {
-          const result = await injectDirectorEvent(runId, {
+          const result = await injectDirectorEventResult(runId, {
             event_type: eventType,
             payload: { message },
             importance: 0.8,
           });
-          setStatusMessage(result ? "已注入" : "失败");
+          setStatusMessage(
+            result.data
+              ? "已注入"
+              : result.error === "network_error"
+                ? "后端不可达"
+                : "注入失败",
+          );
           setTimeout(() => setStatusMessage(""), 3000);
         });
       }}

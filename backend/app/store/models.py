@@ -13,6 +13,7 @@ class SimulationRun(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="draft")
+    scenario_type: Mapped[str] = mapped_column(String(30), default="truman_world")
     current_tick: Mapped[int] = mapped_column(Integer, default=0)
     tick_minutes: Mapped[int] = mapped_column(Integer, default=5)
     world_seed: Mapped[int | None] = mapped_column(Integer)

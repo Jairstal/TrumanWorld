@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { inferAgentStatus, relationshipTone } from "@/lib/agent-utils";
 import { MetricChip } from "@/components/metric-chip";
-import { getAgent } from "@/lib/api";
+import { getAgentResult } from "@/lib/api";
 import { describeAgentEvent } from "@/lib/event-utils";
 
 // 强制动态渲染，避免构建时获取数据
@@ -15,7 +15,8 @@ type AgentPageProps = {
 
 export default async function AgentPage({ params }: AgentPageProps) {
   const { runId, agentId } = await params;
-  const agent = await getAgent(runId, agentId);
+  const agentResult = await getAgentResult(runId, agentId);
+  const agent = agentResult.data;
 
   if (!agent) {
     return (
@@ -30,7 +31,11 @@ export default async function AgentPage({ params }: AgentPageProps) {
           <h1 className="mt-3 text-2xl font-semibold text-ink">未找到 Agent</h1>
         </div>
         <div className="flex flex-1 items-center justify-center">
-          <p className="text-sm text-slate-500">未获取到 agent 数据，可能是后端未启动或 agent 不存在。</p>
+          <p className="text-sm text-slate-500">
+            {agentResult.error === "network_error"
+              ? "后端当前不可达，请确认 API 服务已启动。"
+              : "未获取到 agent 数据，可能是 agent 不存在。"}
+          </p>
         </div>
       </div>
     );

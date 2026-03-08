@@ -1,4 +1,8 @@
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.store.models import SimulationRun
+from app.sim.scheduler import get_scheduler
 
 
 @pytest.mark.asyncio
@@ -33,11 +37,31 @@ async def test_create_run_returns_running_status(client):
     body = response.json()
     assert body["name"] == "test-run"
     assert body["status"] == "running"  # Auto-started with scheduler
+    assert body["scenario_type"] == "truman_world"
     assert body["id"]
+    assert get_scheduler().is_running(body["id"])
 
     agents_response = await client.get(f"/api/runs/{body['id']}/agents")
     assert agents_response.status_code == 200
     assert len(agents_response.json()["agents"]) == 5  # truman, spouse, friend, neighbor, alice
+
+
+@pytest.mark.asyncio
+async def test_create_open_world_run_uses_open_world_scenario(client):
+    response = await client.post(
+        "/api/runs",
+        json={"name": "open-world-run", "scenario_type": "open_world"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scenario_type"] == "open_world"
+    assert get_scheduler().is_running(body["id"])
+
+    agents_response = await client.get(f"/api/runs/{body['id']}/agents")
+    assert agents_response.status_code == 200
+    assert len(agents_response.json()["agents"]) == 1
+    assert agents_response.json()["agents"][0]["name"] == "Rover"
 
 
 @pytest.mark.asyncio
@@ -58,17 +82,47 @@ async def test_run_status_transitions(client):
     run_id = create_response.json()["id"]
 
     start_response = await client.post(f"/api/runs/{run_id}/start")
-    pause_response = await client.post(f"/api/runs/{run_id}/pause")
-    resume_response = await client.post(f"/api/runs/{run_id}/resume")
-
     assert start_response.status_code == 200
     assert start_response.json()["status"] == "running"
+    assert get_scheduler().is_running(run_id)
 
+    pause_response = await client.post(f"/api/runs/{run_id}/pause")
     assert pause_response.status_code == 200
     assert pause_response.json()["status"] == "paused"
+    assert not get_scheduler().is_running(run_id)
 
+    resume_response = await client.post(f"/api/runs/{run_id}/resume")
     assert resume_response.status_code == 200
     assert resume_response.json()["status"] == "running"
+    assert get_scheduler().is_running(run_id)
+
+
+@pytest.mark.asyncio
+async def test_restore_all_runs_restarts_scheduler_and_clears_flag(client, db_session: AsyncSession):
+    create_response = await client.post("/api/runs", json={"name": "restore-run"})
+    run_id = create_response.json()["id"]
+
+    await client.post(f"/api/runs/{run_id}/pause")
+
+    # Simulate an interrupted run that should be restored.
+    run_response = await client.get(f"/api/runs/{run_id}")
+    assert run_response.status_code == 200
+
+    run = await db_session.get(SimulationRun, run_id)
+    assert run is not None
+    run.status = "paused"
+    run.was_running_before_restart = True
+    await db_session.commit()
+
+    restore_response = await client.post("/api/runs/restore-all")
+
+    assert restore_response.status_code == 200
+    restored = restore_response.json()
+    assert len(restored) == 1
+    assert restored[0]["id"] == run_id
+    assert restored[0]["status"] == "running"
+    assert restored[0]["was_running_before_restart"] is False
+    assert get_scheduler().is_running(run_id)
 
 
 @pytest.mark.asyncio

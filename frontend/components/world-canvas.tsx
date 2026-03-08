@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import type { WorldEvent, WorldSnapshot } from "@/lib/types";
+import type { WorldEvent } from "@/lib/types";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { inferAgentStatus } from "@/lib/agent-utils";
 import { EventCard } from "@/components/event-card";
@@ -15,11 +15,8 @@ import { useWorld } from "@/components/world-context";
 import {
   beatBadge,
   buildWorldNameMaps,
-  eventMatchesFilter,
   filterWorldEvents,
   formatGoal,
-  formatSimTime,
-  getLocationTypeLabel,
   locationBeat,
   locationTone,
   type EventFilter,
@@ -84,7 +81,6 @@ export function WorldCanvas({ runId }: Props) {
     );
   }
 
-  const isRunning = world.run.status === "running";
   const selectedLocation =
     world.locations.find((location) => location.id === highlightedLocationId) ?? world.locations[0] ?? null;
   const selectedLocationBeat = selectedLocation ? beatBadge(locationBeat(selectedLocation.id, world.recent_events)) : null;

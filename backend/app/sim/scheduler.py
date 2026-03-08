@@ -51,6 +51,13 @@ class SimulationScheduler:
         async with self._lock:
             await self._stop_run_locked(run_id)
 
+    async def stop_all(self) -> None:
+        """Stop all scheduled runs."""
+        async with self._lock:
+            run_ids = list(self._scheduled)
+            for run_id in run_ids:
+                await self._stop_run_locked(run_id)
+
     async def _stop_run_locked(self, run_id: str) -> None:
         """Internal method to stop a run (must hold lock)."""
         scheduled = self._scheduled.pop(run_id, None)

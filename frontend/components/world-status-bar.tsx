@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useWorld } from "@/components/world-context";
-import { startRun, pauseRun } from "@/lib/api";
+import { startRunResult, pauseRunResult } from "@/lib/api";
 import { formatSimTime } from "@/lib/world-utils";
 
 export function WorldStatusBar() {
   const { runId, world, error, isValidating, refresh } = useWorld();
   const [isToggling, setIsToggling] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   if (!world) {
     return (
@@ -24,10 +25,12 @@ export function WorldStatusBar() {
   const handleToggleRun = async () => {
     setIsToggling(true);
     try {
-      if (isRunning) {
-        await pauseRun(runId);
+      const result = isRunning ? await pauseRunResult(runId) : await startRunResult(runId);
+      if (!result.data) {
+        setActionError(result.error === "network_error" ? "后端当前不可达" : "状态更新失败");
+        return;
       } else {
-        await startRun(runId);
+        setActionError(null);
       }
       setTimeout(() => refresh(), 500);
     } catch (err) {
@@ -91,6 +94,11 @@ export function WorldStatusBar() {
       {error ? (
         <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-700">
           刷新失败
+        </span>
+      ) : null}
+      {actionError ? (
+        <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700">
+          {actionError}
         </span>
       ) : null}
     </div>

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { DirectorEventForm } from "@/components/director-event-form";
 import { RunControlPanel } from "@/components/run-control-panel";
-import { getRun, listAgents } from "@/lib/api";
+import { getRunResult, listAgentsResult } from "@/lib/api";
 
 // 强制动态渲染，避免构建时获取数据
 export const dynamic = "force-dynamic";
@@ -13,9 +13,40 @@ type RunPageProps = {
 
 export default async function RunPage({ params }: RunPageProps) {
   const { runId } = await params;
-  const [run, agentList] = await Promise.all([getRun(runId), listAgents(runId)]);
+  const [runResult, agentListResult] = await Promise.all([getRunResult(runId), listAgentsResult(runId)]);
+  const run = runResult.data;
+  const agentList = agentListResult.data ?? { run_id: runId, agents: [] };
   const agentCount = agentList.agents.length;
   const isRunning = run?.status === "running";
+
+  if (!run) {
+    const title = runResult.error === "not_found" ? "未找到 Run" : "Run 加载失败";
+    const detail =
+      runResult.error === "network_error"
+        ? "后端当前不可达，请确认 API 服务已启动。"
+        : runResult.error === "not_found"
+          ? "这个运行不存在，或者已经被删除。"
+          : "未能读取运行详情。";
+
+    return (
+      <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(247,243,232,0.9),_rgba(238,245,241,0.94)_38%,_rgba(248,250,252,1))]">
+        <div className="flex items-center gap-4 border-b border-white/60 bg-white/70 px-6 py-4 backdrop-blur">
+          <Link href="/" className="group flex items-center gap-1.5 text-sm text-slate-500 hover:text-moss">
+            <svg className="h-4 w-4 transition group-hover:-translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            <span>控制台</span>
+          </Link>
+        </div>
+        <div className="flex flex-1 items-center justify-center px-6">
+          <div className="max-w-md rounded-2xl border border-amber-200 bg-white/80 p-6 text-center shadow-sm">
+            <h1 className="text-xl font-semibold text-ink">{title}</h1>
+            <p className="mt-2 text-sm text-slate-600">{detail}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(247,243,232,0.9),_rgba(238,245,241,0.94)_38%,_rgba(248,250,252,1))]">
@@ -63,6 +94,11 @@ export default async function RunPage({ params }: RunPageProps) {
               </div>
               <RunControlPanel runId={runId} status={run?.status} />
             </section>
+            {agentListResult.error ? (
+              <section className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-800">
+                居民列表加载失败。
+              </section>
+            ) : null}
 
             {/* 快捷入口 */}
             <section className="grid gap-3 sm:grid-cols-2">

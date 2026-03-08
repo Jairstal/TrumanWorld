@@ -4,6 +4,7 @@ export type RunSummary = {
   id: string;
   name: string;
   status: string;
+  scenario_type?: string;
   current_tick?: number;
   tick_minutes?: number;
   was_running_before_restart?: boolean;
@@ -16,6 +17,7 @@ export type CreateRunResponse = {
   id: string;
   name: string;
   status: string;
+  scenario_type?: string;
 };
 
 export type TickResponse = {

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { pauseRun, resumeRun, restoreAllRuns } from "@/lib/api";
+import { pauseRunResult, resumeRunResult, restoreAllRunsResult } from "@/lib/api";
 
 type Run = { id: string; status: string; was_running_before_restart?: boolean };
 
@@ -14,6 +14,7 @@ export function RunControls({ runs }: RunControlsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [busy, setBusy] = useState<"pause" | "resume" | "restore" | null>(null);
+  const [message, setMessage] = useState("");
 
   const runningRuns = runs.filter((r) => r.status === "running");
   const pausedRuns = runs.filter((r) => r.status === "paused");
@@ -23,8 +24,13 @@ export function RunControls({ runs }: RunControlsProps) {
     if (runningRuns.length === 0) return;
     setBusy("pause");
     startTransition(async () => {
-      await Promise.all(runningRuns.map((r) => pauseRun(r.id)));
+      const results = await Promise.all(runningRuns.map((r) => pauseRunResult(r.id)));
       setBusy(null);
+      if (results.some((result) => !result.data)) {
+        setMessage("批量暂停未全部成功。");
+        return;
+      }
+      setMessage("");
       router.refresh();
     });
   };
@@ -35,11 +41,22 @@ export function RunControls({ runs }: RunControlsProps) {
     startTransition(async () => {
       const targets = pausedRuns.length > 0 ? pausedRuns : needsRestore;
       if (needsRestore.length > 0) {
-        await restoreAllRuns();
+        const result = await restoreAllRunsResult();
+        if (!result.data) {
+          setBusy(null);
+          setMessage("恢复失败，请确认后端状态。");
+          return;
+        }
       } else {
-        await Promise.all(targets.map((r) => resumeRun(r.id)));
+        const results = await Promise.all(targets.map((r) => resumeRunResult(r.id)));
+        if (results.some((result) => !result.data)) {
+          setBusy(null);
+          setMessage("批量恢复未全部成功。");
+          return;
+        }
       }
       setBusy(null);
+      setMessage("");
       router.refresh();
     });
   };
@@ -111,6 +128,7 @@ export function RunControls({ runs }: RunControlsProps) {
           </button>
         )}
       </div>
+      {message ? <span className="text-xs text-amber-700">{message}</span> : null}
     </div>
   );
 }

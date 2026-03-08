@@ -31,7 +31,7 @@
 
 ```bash
 git clone https://github.com/gqy20/TrumanWorld.git
-cd truman-world
+cd TrumanWorld
 ```
 
 ### 2. 配置环境变量
@@ -47,11 +47,11 @@ cp frontend/.env.local.example frontend/.env.local
 编辑 `.env` 配置至少以下变量：
 
 ```bash
-# 必需：Anthropic API Key（启用 Claude 决策层）
-TRUMANWORLD_ANTHROPIC_API_KEY=sk-ant-xxx
-
 # 可选：使用 heuristic provider 跑通仿真闭环
 TRUMANWORLD_AGENT_PROVIDER=heuristic
+
+# 如需 Claude 决策层，再配置：
+# TRUMANWORLD_ANTHROPIC_API_KEY=sk-ant-xxx
 ```
 
 ### 3. 安装依赖
@@ -82,9 +82,15 @@ make db-migrate
 make dev
 
 # 或分别启动
-make backend-dev    # http://127.0.0.1:8000
-make frontend-dev   # http://127.0.0.1:3000
+make backend-dev    # http://127.0.0.1:18080
+make frontend-dev   # http://127.0.0.1:13000
 ```
+
+默认开发端口：
+
+- 前端：`13000`
+- 后端：`18080`
+- 数据库：`5432`
 
 ---
 
@@ -114,13 +120,14 @@ make db-status      # 查看容器状态
 make lint           # Ruff 检查
 make format         # Ruff 格式化
 make pre-commit     # 运行 pre-commit hooks
+cd frontend && npm run lint   # ESLint + TypeScript
 ```
 
 ### 测试
 
 ```bash
 make test           # 运行所有测试
-make test-coverage  # 运行测试并生成覆盖率报告
+cd frontend && npm run build  # 前端生产构建检查
 ```
 
 ### 端口管理
@@ -135,7 +142,7 @@ make kill-ports     # 终止占用端口的进程
 ## 📁 项目结构
 
 ```
-truman-world/
+TrumanWorld/
 ├── backend/              # Python FastAPI 后端
 │   ├── app/
 │   │   ├── api/         # HTTP 路由
@@ -160,7 +167,7 @@ truman-world/
 │           └── prompts/
 │               └── system.md  # 全局 system prompt
 ├── docs/                 # 文档
-└── CLAUDE.md            # Claude Code 配置
+└── AGENTS.md             # 仓库协作说明
 ```
 
 ### Scenario 结构
@@ -186,6 +193,8 @@ backend/app/scenario/
 - `sim` 不再直接绑定 Truman world 具体实现
 - `SimulationService` 依赖 `Scenario` 接口
 - 题材特定的 heuristic、seed、state update 放在各自 scenario 下
+
+当前 run 已持久化 `scenario_type`，所以创建、手动 tick、自动调度、恢复运行都会基于同一世界类型执行。
 
 新增 scenario 时，最小需要实现的是：
 

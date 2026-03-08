@@ -7,7 +7,7 @@ import type { WorldSnapshot } from "@/lib/types";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { inferAgentStatus } from "@/lib/agent-utils";
 import { EventCard } from "@/components/event-card";
-import { beatBadge, buildWorldNameMaps, getLocationTypeLabel, locationBeat, locationTone } from "@/lib/world-utils";
+import { beatBadge, buildWorldNameMaps, getLocationTypeLabel, locationBeat } from "@/lib/world-utils";
 
 type LocationDetailModalProps = {
   isOpen: boolean;

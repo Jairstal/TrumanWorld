@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { advanceRunTick, pauseRun, resumeRun } from "@/lib/api";
+import { advanceRunTickResult, pauseRunResult, resumeRunResult } from "@/lib/api";
 
 type RunControlPanelProps = {
   runId: string;
@@ -16,13 +16,18 @@ export function RunControlPanel({ runId, status }: RunControlPanelProps) {
   const [isPending, startTransition] = useTransition();
 
   const isRunning = status === "running";
-  const isPaused = status === "paused";
+
+  const formatActionError = (error: string | null) => {
+    if (error === "network_error") return "后端当前不可达。";
+    if (error === "not_found") return "运行不存在。";
+    return "请求失败，请稍后重试。";
+  };
 
   const handlePause = () => {
     startTransition(async () => {
-      const result = await pauseRun(runId);
-      if (!result) {
-        setMessage("暂停失败，可能是后端未启动。");
+      const result = await pauseRunResult(runId);
+      if (!result.data) {
+        setMessage(`暂停失败，${formatActionError(result.error)}`);
         return;
       }
       setMessage("⏸️ 世界已暂停，居民活动停止");
@@ -32,9 +37,9 @@ export function RunControlPanel({ runId, status }: RunControlPanelProps) {
 
   const handleResume = () => {
     startTransition(async () => {
-      const result = await resumeRun(runId);
-      if (!result) {
-        setMessage("恢复失败，可能是后端未启动。");
+      const result = await resumeRunResult(runId);
+      if (!result.data) {
+        setMessage(`恢复失败，${formatActionError(result.error)}`);
         return;
       }
       setMessage("▶️ 世界已恢复运行");
@@ -44,13 +49,13 @@ export function RunControlPanel({ runId, status }: RunControlPanelProps) {
 
   const handleStepTick = () => {
     startTransition(async () => {
-      const result = await advanceRunTick(runId);
-      if (!result) {
-        setMessage("推进 tick 失败，可能是后端未启动。");
+      const result = await advanceRunTickResult(runId);
+      if (!result.data) {
+        setMessage(`推进 tick 失败，${formatActionError(result.error)}`);
         return;
       }
       setMessage(
-        `⏩ 手动推进 Tick ${result.tick_no}，accepted=${result.accepted_count}，rejected=${result.rejected_count}`
+        `⏩ 手动推进 Tick ${result.data.tick_no}，accepted=${result.data.accepted_count}，rejected=${result.data.rejected_count}`
       );
       router.refresh();
     });

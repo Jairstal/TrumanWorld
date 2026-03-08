@@ -14,6 +14,7 @@ class RunDetailResponse(BaseModel):
     id: str
     name: str
     status: str
+    scenario_type: str
     current_tick: int
     tick_minutes: int
 
@@ -145,6 +146,7 @@ class WorldSnapshotRunResponse(BaseModel):
     id: str
     name: str
     status: str
+    scenario_type: str
     current_tick: int
     tick_minutes: int
 

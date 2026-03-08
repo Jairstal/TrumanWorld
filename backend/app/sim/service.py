@@ -21,6 +21,7 @@ from app.agent.runtime import AgentRuntime
 from app.director.observer import DirectorAssessment
 from app.infra.settings import get_settings
 from app.scenario.base import Scenario
+from app.scenario.open_world.scenario import OpenWorldScenario
 from app.scenario.truman_world.scenario import TrumanWorldScenario
 from app.scenario.truman_world.types import (
     DirectorGuidance,
@@ -48,7 +49,7 @@ from app.store.repositories import (
     LocationRepository,
     RunRepository,
 )
-from app.store.models import Agent
+from app.store.models import Agent, SimulationRun
 
 if TYPE_CHECKING:
     from app.infra.db import async_engine
@@ -72,13 +73,32 @@ class SimulationService:
         self._context_builder = ContextBuilder(session)
         self._persistence = PersistenceManager(session)
         self._scenario = (
-            scenario.with_session(session) if scenario is not None else TrumanWorldScenario(session)
+            scenario.with_session(session)
+            if scenario is not None
+            else self.build_scenario("truman_world", session)
         )
         settings = get_settings()
         self.agent_runtime = agent_runtime or AgentRuntime(
             registry=AgentRegistry(agents_root or (settings.project_root / "agents"))
         )
         self._scenario.configure_runtime(self.agent_runtime)
+
+    @staticmethod
+    def build_scenario(
+        scenario_type: str | None,
+        session: AsyncSession | None = None,
+    ) -> Scenario:
+        if scenario_type == "open_world":
+            return OpenWorldScenario(session)
+        return TrumanWorldScenario(session)
+
+    def _configure_scenario(self, scenario_type: str | None) -> Scenario:
+        self._scenario = self.build_scenario(scenario_type, self.session)
+        self._scenario.configure_runtime(self.agent_runtime)
+        return self._scenario
+
+    def _configure_scenario_for_run(self, run: SimulationRun) -> Scenario:
+        return self._configure_scenario(run.scenario_type)
 
     @classmethod
     def create_for_scheduler(
@@ -98,7 +118,7 @@ class SimulationService:
         instance._context_builder = None  # type: ignore[assignment]
         instance._persistence = None  # type: ignore[assignment]
         instance._scenario = (
-            scenario.with_session(None) if scenario is not None else TrumanWorldScenario()
+            scenario.with_session(None) if scenario is not None else cls.build_scenario("truman_world")
         )
         instance._scenario.configure_runtime(agent_runtime)
         return instance
@@ -108,6 +128,7 @@ class SimulationService:
         if run is None:
             msg = f"Run not found: {run_id}"
             raise ValueError(msg)
+        self._configure_scenario_for_run(run)
 
         world = await self._load_world(run_id, tick_minutes=run.tick_minutes)
         if not intents:
@@ -141,15 +162,22 @@ class SimulationService:
 
         # Phase 1: Read all data needed for the tick
         async with AsyncSessionType(engine) as read_session:
+            run = await read_session.get(SimulationRun, run_id)
+            if run is None:
+                msg = f"Run not found: {run_id}"
+                raise ValueError(msg)
+            scenario = self.build_scenario(run.scenario_type, read_session)
+            scenario.configure_runtime(self.agent_runtime)
             loaded = await load_tick_data(
                 session=read_session,
                 run_id=run_id,
-                scenario=self._scenario,
+                scenario=scenario,
             )
-            run = loaded.run
-            current_tick = run.current_tick
+            current_tick = loaded.run.current_tick
             world = loaded.world
             agent_data = loaded.agent_data
+        self._scenario = self.build_scenario(run.scenario_type)
+        self._scenario.configure_runtime(self.agent_runtime)
 
         # Phase 2: Prepare intents (SDK calls happen here, no active session)
         if not intents:
@@ -393,6 +421,11 @@ class SimulationService:
         await self.event_repo.create(event)
 
     async def observe_run(self, run_id: str, event_limit: int = 20) -> DirectorAssessment:
+        run = await self.run_repo.get(run_id)
+        if run is None:
+            msg = f"Run not found: {run_id}"
+            raise ValueError(msg)
+        self._configure_scenario_for_run(run)
         return await self._scenario.observe_run(run_id, event_limit=event_limit)
 
     async def seed_demo_run(self, run_id: str) -> None:
@@ -400,6 +433,7 @@ class SimulationService:
         if run is None:
             msg = f"Run not found: {run_id}"
             raise ValueError(msg)
+        self._configure_scenario_for_run(run)
 
         existing_agents = await self.agent_repo.list_for_run(run_id)
         if existing_agents:

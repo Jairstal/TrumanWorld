@@ -67,17 +67,48 @@
 ```bash
 # 1. 克隆项目
 git clone https://github.com/gqy20/TrumanWorld.git
-cd truman-world
+cd TrumanWorld
 
 # 2. 配置环境
 cp .env.example .env
-# 添加你的 Anthropic API Key
+cp frontend/.env.local.example frontend/.env.local
+
+# 可选：如果暂时不接入 Claude，可使用启发式 provider 跑通闭环
+echo "TRUMANWORLD_AGENT_PROVIDER=heuristic" >> .env
+
+# 如需 Claude 决策层，再补充：
+# TRUMANWORLD_ANTHROPIC_API_KEY=...
 
 # 3. 启动
 make dev
 ```
 
-访问 **导演控制台**：http://127.0.0.1:3000
+默认端口：
+
+- 导演控制台：`http://127.0.0.1:13000`
+- 后端 API：`http://127.0.0.1:18080/api`
+
+如果分别启动：
+
+```bash
+make backend-dev   # http://127.0.0.1:18080
+make frontend-dev  # http://127.0.0.1:13000
+```
+
+## 当前可用世界类型
+
+- `Truman World`：默认场景，包含 Truman 与配套 cast。
+- `Open World`：最小开放场景，用于验证 scenario 切换与基础运行链路。
+
+前端创建 run 时现在会显式传 `scenario_type`，不再用“是否填充 demo 数据”隐式表示世界类型。
+
+## 开发检查
+
+```bash
+make test
+make lint
+cd frontend && npm run lint && npm run build
+```
 
 ---
 

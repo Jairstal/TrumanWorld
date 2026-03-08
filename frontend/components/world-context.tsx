@@ -2,13 +2,13 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import useSWR from "swr";
-import { buildApiUrl, fetchApiOrThrow } from "@/lib/api";
+import { buildApiUrl, fetchApiResult, type ApiResult } from "@/lib/api";
 import type { WorldSnapshot } from "@/lib/types";
 
 type WorldContextValue = {
   runId: string;
   world: WorldSnapshot | null;
-  error: Error | null;
+  error: string | null;
   isValidating: boolean;
   refresh: () => void;
 };
@@ -36,12 +36,16 @@ export function WorldProvider({ runId, initialData, children }: Props) {
     setIsClient(true);
   }, []);
 
-  const { data: world, error, isValidating, mutate } = useSWR<WorldSnapshot | null>(
+  const { data: result, isValidating, mutate } = useSWR<ApiResult<WorldSnapshot>>(
     isClient ? buildApiUrl(`/runs/${runId}/world`) : null,
-    fetchApiOrThrow,
+    fetchApiResult,
     {
-      fallbackData: initialData ?? null,
-      refreshInterval: (snapshot) => (snapshot?.run.status === "running" ? 5000 : 0),
+      fallbackData: {
+        data: initialData ?? null,
+        error: null,
+        status: initialData ? 200 : null,
+      },
+      refreshInterval: (snapshot) => (snapshot?.data?.run.status === "running" ? 5000 : 0),
       revalidateOnFocus: true,
       revalidateOnMount: true,
     },
@@ -50,6 +54,9 @@ export function WorldProvider({ runId, initialData, children }: Props) {
   const refresh = useCallback(() => {
     void mutate();
   }, [mutate]);
+
+  const world = result?.data ?? null;
+  const error = result?.error ?? null;
 
   return (
     <WorldContext.Provider value={{ runId, world: world ?? null, error, isValidating, refresh }}>

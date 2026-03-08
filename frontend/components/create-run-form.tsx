@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { createRun } from "@/lib/api";
+import { createRunResult } from "@/lib/api";
 
 export function CreateRunForm() {
   const router = useRouter();
@@ -20,13 +20,17 @@ export function CreateRunForm() {
       onSubmit={(event) => {
         event.preventDefault();
         startTransition(async () => {
-          const result = await createRun(name, scenarioType, true, tickMinutes);
-          if (result) {
-            setMessage(`已创建：${result.name}`);
-            router.push(`/runs/${result.id}`);
+          const result = await createRunResult(name, scenarioType, true, tickMinutes);
+          if (result.data) {
+            setMessage(`已创建：${result.data.name}`);
+            router.push(`/runs/${result.data.id}`);
             router.refresh();
           } else {
-            setMessage("创建失败，后端可能未启动");
+            setMessage(
+              result.error === "network_error"
+                ? "创建失败，后端当前不可达"
+                : "创建失败，请稍后重试",
+            );
           }
         });
       }}

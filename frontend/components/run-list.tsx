@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { deleteRun } from "@/lib/api";
+import { deleteRunResult } from "@/lib/api";
 
 type Run = {
   id: string;
@@ -32,11 +32,11 @@ export function RunList({ runs }: RunListProps) {
 
     setDeletingId(runId);
     startTransition(async () => {
-      const result = await deleteRun(runId);
-      if (result) {
+      const result = await deleteRunResult(runId);
+      if (result.data) {
         router.refresh();
       } else {
-        alert("删除失败，请重试。");
+        alert(result.error === "network_error" ? "删除失败，后端当前不可达。" : "删除失败，请重试。");
       }
       setDeletingId(null);
     });
@@ -61,11 +61,6 @@ export function RunList({ runs }: RunListProps) {
       {runs.map((run) => {
         const isRunning = run.status === "running";
         const isPaused = run.status === "paused";
-        const accentClass = isRunning
-          ? "before:bg-emerald-500"
-          : isPaused
-          ? "before:bg-amber-400"
-          : "before:bg-slate-300";
         return (
           <div
             key={run.id}

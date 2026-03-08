@@ -2,10 +2,11 @@ import { CreateRunForm } from "@/components/create-run-form";
 import { RunList } from "@/components/run-list";
 import { DeleteAllButton } from "@/components/delete-all-button";
 import { RunControls } from "@/components/run-controls";
-import { listRuns } from "@/lib/api";
+import { listRunsResult } from "@/lib/api";
 
 export default async function HomePage() {
-  const runs = await listRuns();
+  const runsResult = await listRunsResult();
+  const runs = runsResult.data ?? [];
   const hasRuns = runs.length > 0;
   const runningCount = runs.filter((r) => r.status === "running").length;
 
@@ -51,6 +52,13 @@ export default async function HomePage() {
                 {runs.length > 1 && <DeleteAllButton runs={runs} />}
               </div>
             </div>
+            {runsResult.error ? (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {runsResult.error === "network_error"
+                  ? "后端当前不可达，列表展示的是空状态。"
+                  : "运行列表加载失败。"}
+              </div>
+            ) : null}
             <RunList runs={runs} />
           </section>
         </div>
