@@ -33,6 +33,8 @@ MVP 推荐架构：
 - 保留最小记忆闭环
 - 砍掉非关键独立模块
 
+> **注意**: 当前代码已超出 MVP 范围，新增了 Scenario 抽象层、Director 模块和更多 API 端点。详见下方"当前实现"章节。
+
 ## 3. 精简架构图
 
 ```text
@@ -117,6 +119,22 @@ MVP 后端只保留 4 个模块：
 - `agent`
 - `store`
 
+### 当前实现 (7+ modules)
+
+实际实现已超出 MVP，包含以下模块：
+
+```
+backend/app/
+├── api/           # HTTP 路由
+├── sim/           # 仿真核心
+├── agent/         # Agent 运行时
+├── store/         # 数据持久化
+├── scenario/      # 世界抽象层
+├── director/      # 导演计划与观察
+├── infra/        # 基础设施
+└── protocol/      # 协议定义
+```
+
 ### `api`
 
 负责：
@@ -130,6 +148,7 @@ MVP 后端只保留 4 个模块：
 负责：
 
 - SimulationRunner
+- SimulationScheduler (自动 tick 调度)
 - WorldState
 - ActionResolver
 - tick 推进
@@ -155,6 +174,9 @@ MVP 后端只保留 4 个模块：
 - planner
 - reactor
 - reflector
+- providers (heuristic/claude)
+- connection pool
+- memory MCP server
 
 注意：
 
@@ -169,6 +191,36 @@ MVP 后端只保留 4 个模块：
 - event persistence
 - memory retrieval
 - run state persistence
+
+### `scenario` (新增)
+
+负责：
+
+- 世界抽象层
+- 题材特定规则
+- Runtime 与 agent context 配置
+- 连接 director、state updater、seed builder
+
+当前已实现：
+
+- `TrumanWorldScenario` - Truman World 规则
+- `OpenWorldScenario` - 最小示例
+
+### `director` (新增)
+
+负责：
+
+- Director planning
+- Run observation
+- 导演计划构建
+
+### `infra` (新增)
+
+负责：
+
+- Settings 配置
+- Logging 日志
+- Database 数据库连接
 
 ## 6. 基于 IssueLab 的智能体架构参考
 
@@ -352,6 +404,18 @@ MVP 只保留 6 张表：
 - `events`
 - `relationships`
 - `memories`
+
+### 当前实现 (7 tables)
+
+实际实现已包含 7 张表：
+
+- `simulation_runs` - Run 生命周期
+- `locations` - 地点信息
+- `agents` - Agent 状态
+- `events` - 事件记录
+- `relationships` - 关系状态
+- `memories` - 记忆存储
+- `director_memos` - 导演记忆
 
 ### 表职责
 

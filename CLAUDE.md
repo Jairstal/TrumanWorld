@@ -12,10 +12,10 @@ AI Truman World is an AI social simulation system built with Claude Agent SDK. I
 # Install dependencies
 make install
 
-# Start backend (FastAPI on http://127.0.0.1:8000)
+# Start backend (FastAPI on http://127.0.0.1:18080)
 make backend-dev
 
-# Start frontend (Next.js on http://127.0.0.1:3000)
+# Start frontend (Next.js on http://127.0.0.1:13000)
 make frontend-dev
 
 # Start both (with Docker database)
@@ -49,17 +49,21 @@ cd frontend && npm run build
 - **Backend**: Python + FastAPI
 - **Frontend**: Next.js + TypeScript + Tailwind
 - **AI Cognition**: Claude Agent SDK
-- **Database**: PostgreSQL + pgvector
-- **Cache**: Redis
+- **Database**: PostgreSQL (pgvector 预留)
+- **Cache**: Redis (预留)
 
-### Backend Modules (4 core modules)
+### Backend Modules (7 modules)
 
 ```
 backend/app/
-├── api/         # HTTP routes, run control, queries
-├── sim/         # Simulation loop, world state, action resolver
-├── agent/       # Claude SDK, registry, planner/reactor/reflector
-└── store/       # SQLAlchemy models, persistence, memory retrieval
+├── api/           # HTTP routes, run control, queries
+├── sim/           # Simulation loop, world state, action resolver
+├── agent/         # Claude SDK, registry, planner/reactor/reflector
+├── store/         # SQLAlchemy models, persistence, memory retrieval
+├── scenario/      # World abstraction layer (truman_world, open_world)
+├── director/      # Director planning and observation
+├── infra/        # Settings, logging, database
+└── protocol/     # Protocol definitions
 ```
 
 ### Agent Configuration Pattern
@@ -104,14 +108,17 @@ model:
 ### Agent Runtime Flow
 
 ```
-registry.py      → 扫描 agents/*/agent.yml
-config_loader.py → 解析人格、职业、model config
-prompt_loader.py → 加载 prompt.md 并拼装上下文
-runtime.py       → 封装 Claude Agent SDK 调用
-context_builder.py → 组装世界状态、地点、附近 agent、记忆
-planner.py       → 早晨生成日计划
-reactor.py       → 遇到社交/异常事件时反应
-reflector.py     → 晚上做每日反思
+registry.py         → 扫描 agents/*/agent.yml
+config_loader.py    → 解析人格、职业、model config
+prompt_loader.py    → 加载 prompt.md 并拼装上下文
+runtime.py          → 封装 Claude Agent SDK 调用
+context_builder.py  → 组装世界状态、地点、附近 agent、记忆
+providers.py        → Agent provider 抽象 (heuristic/claude)
+connection_pool.py  → Claude 连接池管理
+memory_mcp_server.py → 记忆 MCP 工具服务器
+planner.py          → 早晨生成日计划
+reactor.py          → 遇到社交/异常事件时反应
+reflector.py        → 晚上做每日反思
 ```
 
 ### Tick Flow (每个 tick 执行)
@@ -126,7 +133,14 @@ reflector.py     → 晚上做每日反思
 8. 更新 relationship
 9. 写 memory
 
-### MVP Data Model (6 tables)
+### Simulation Scheduler
+
+- `SimulationScheduler` 负责自动 tick 推进
+- 支持配置 tick 间隔（默认 5 秒）
+- 可以在 run 运行时自动推进时间
+- 支持暂停/恢复调度
+
+### Data Model (7 tables)
 
 - `simulation_runs` - run 生命周期, 当前 tick
 - `locations` - 地点信息, 坐标, 容量
@@ -134,6 +148,7 @@ reflector.py     → 晚上做每日反思
 - `events` - 所有结构化事件 (talk, action, director injection)
 - `relationships` - familiarity, trust, affinity
 - `memories` - recent, episodic, reflection
+- `director_memos` - 导演记忆存储
 
 ### Director Layer
 
@@ -169,9 +184,9 @@ TRUMANWORLD_ANTHROPIC_API_KEY=<your-key>
 TRUMANWORLD_ANTHROPIC_BASE_URL=
 TRUMANWORLD_AGENT_PROVIDER=heuristic
 TRUMANWORLD_AGENT_MODEL=
-TRUMANWORLD_CORS_ALLOWED_ORIGINS=["http://127.0.0.1:3000","http://localhost:3000"]
+TRUMANWORLD_CORS_ALLOWED_ORIGINS=["http://127.0.0.1:13000","http://localhost:13000"]
 TRUMANWORLD_LOG_LEVEL=INFO
-NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:18080/api
 ```
 
 Key variables:
@@ -185,16 +200,39 @@ Key variables:
 - **TypeScript**: 2-space indent, PascalCase components, Next.js App Router conventions
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `test:`, `chore:`)
 
-## API Endpoints (MVP)
+## API Endpoints
 
+### Run Management
 - `POST /runs` - 创建新 run
+- `GET /runs` - 获取 run 列表
+- `GET /runs/{id}` - 获取 run 状态
+- `DELETE /runs/{id}` - 删除 run
 - `POST /runs/{id}/start` - 启动
 - `POST /runs/{id}/pause` - 暂停
 - `POST /runs/{id}/resume` - 恢复
-- `POST /runs/{id}/director/events` - 导演注入事件
-- `GET /runs/{id}` - 获取 run 状态
+- `POST /runs/{id}/tick` - 手动推进一个 tick
+
+### Timeline & Events
 - `GET /runs/{id}/timeline` - 获取时间线事件
+- `POST /runs/{id}/director/events` - 导演注入事件
+
+### World View
+- `GET /runs/{id}/world` - 世界快照
+- `GET /runs/{id}/world/clock` - 世界时钟
+- `GET /runs/{id}/world/locations` - 地点列表
+- `GET /runs/{id}/world/events` - 世界事件列表
+
+### Agent Management
+- `GET /runs/{id}/agents` - 获取 agent 列表
 - `GET /runs/{id}/agents/{agent_id}` - 获取 agent 详情
+- `GET /agents/{id}/memories` - 获取 agent 记忆
+- `GET /agents/{id}/relationships` - 获取 agent 关系
+
+### Director
+- `GET /runs/{id}/director/observation` - 导演观察
+- `GET /runs/{id}/director/plan` - 导演计划
+
+### Health
 - `GET /api/health` - 健康检查
 
 ## Frontend Routes
