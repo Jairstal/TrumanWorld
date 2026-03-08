@@ -196,6 +196,16 @@ class TrumanWorldSeedBuilder:
             y=0,
             attributes={"kind": "work"},
         )
+        hospital = Location(
+            id=f"{run_id}-hospital",
+            run_id=run_id,
+            name="海湾医院",
+            location_type="hospital",
+            capacity=8,
+            x=3,
+            y=1,
+            attributes={"kind": "work"},
+        )
 
         truman = Agent(
             id=f"{run_id}-truman",
@@ -223,7 +233,7 @@ class TrumanWorldSeedBuilder:
             name="Meryl",
             occupation="医院职员",
             home_location_id=f"{run_id}-apartment",
-            current_location_id=f"{run_id}-apartment",
+            current_location_id=f"{run_id}-hospital",
             current_goal="work",
             personality={"agreeableness": 0.72, "conscientiousness": 0.7},
             profile=build_scenario_agent_profile(
@@ -231,6 +241,7 @@ class TrumanWorldSeedBuilder:
                 agent_config_id="spouse",
                 world_role="cast",
                 workplace="医院",
+                workplace_location_id=f"{run_id}-hospital",
                 work_description="医院工作人员，协助病房巡查和病历整理",
             ),
             status={"energy": 0.78},
@@ -323,7 +334,7 @@ class TrumanWorldSeedBuilder:
             metadata["world_start_time"] = DEFAULT_WORLD_START_TIME.isoformat()
             run.metadata_json = metadata
 
-        self.session.add_all([plaza, apartment, office, cafe])
+        self.session.add_all([plaza, apartment, office, cafe, hospital])
         await self.session.flush()
         self.session.add_all([truman, spouse, friend, neighbor, alice])
         await self.session.flush()

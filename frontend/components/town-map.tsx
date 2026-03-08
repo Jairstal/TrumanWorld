@@ -64,6 +64,7 @@ const LOCATION_STYLES: Record<string, { icon: string; color: string; bgColor: st
   shop: { icon: "🏪", color: "#7c3aed", bgColor: "#ede9fe", label: "商店" },
   home: { icon: "🏠", color: "#db2777", bgColor: "#fce7f3", label: "住宅" },
   office: { icon: "🏢", color: "#0369a1", bgColor: "#e0f2fe", label: "办公室" },
+  hospital: { icon: "🏥", color: "#dc2626", bgColor: "#fee2e2", label: "医院" },
   default: { icon: "📍", color: "#64748b", bgColor: "#f8fafc", label: "地点" },
 };
 

@@ -60,6 +60,22 @@ OCCUPATION_APPEARANCE: dict[str, dict[str, str]] = {
     },
 }
 
+OCCUPATION_ALIASES: dict[str, str] = {
+    "insurance clerk": "insurance clerk",
+    "保险文员": "insurance clerk",
+    "hospital staff": "hospital staff",
+    "医院职员": "hospital staff",
+    "医院工作人员": "hospital staff",
+    "office coworker": "office coworker",
+    "办公室同事": "office coworker",
+    "barista": "barista",
+    "咖啡师": "barista",
+    "shop regular": "shop regular",
+    "常客": "shop regular",
+    "resident": "resident",
+    "居民": "resident",
+}
+
 
 LOCATION_TYPE_RULES: dict[str, dict[str, str]] = {
     "cafe": {
@@ -86,6 +102,13 @@ LOCATION_TYPE_RULES: dict[str, dict[str, str]] = {
         "typical_workers": [],
         "typical_visitors": ["resident", "shop regular"],
         "activity_hint": "在广场散步或闲逛",
+    },
+    "hospital": {
+        "context": "医院",
+        "typical_workers": ["hospital staff"],
+        "typical_visitors": ["resident"],
+        "activity_hint_worker": "在病区巡查或整理记录",
+        "activity_hint_customer": "在医院办理事务",
     },
 }
 
@@ -136,10 +159,11 @@ def build_observable_cues(
     """
     cues: dict[str, Any] = {}
 
-    if not occupation or occupation not in OCCUPATION_APPEARANCE:
+    canonical_occupation = normalize_occupation(occupation)
+    if canonical_occupation is None:
         return cues
 
-    occupation_info = OCCUPATION_APPEARANCE[occupation]
+    occupation_info = OCCUPATION_APPEARANCE[canonical_occupation]
     cues["appearance"] = occupation_info["appearance"]
     cues["typical_activity"] = occupation_info["typical_activity"]
 
@@ -147,7 +171,13 @@ def build_observable_cues(
         location_info = LOCATION_TYPE_RULES[location_type]
 
         if is_at_workplace:
-            if location_type == "cafe" and occupation in location_info.get("typical_workers", []):
+            if location_type == "cafe" and canonical_occupation in location_info.get(
+                "typical_workers", []
+            ):
+                cues["current_activity_hint"] = location_info.get("activity_hint_worker", "在工作")
+            elif location_type == "hospital" and canonical_occupation in location_info.get(
+                "typical_workers", []
+            ):
                 cues["current_activity_hint"] = location_info.get("activity_hint_worker", "在工作")
             elif location_type == "office":
                 cues["current_activity_hint"] = location_info.get("activity_hint", "在工作")
@@ -156,12 +186,24 @@ def build_observable_cues(
                 cues["current_activity_hint"] = location_info.get(
                     "activity_hint_customer", "喝咖啡"
                 )
+            elif location_type == "hospital":
+                cues["current_activity_hint"] = location_info.get(
+                    "activity_hint_customer", "办理事务"
+                )
             elif location_type == "plaza":
                 cues["current_activity_hint"] = location_info.get("activity_hint", "闲逛")
             elif location_type == "home":
                 cues["current_activity_hint"] = location_info.get("activity_hint", "休息")
 
     return cues
+
+
+def normalize_occupation(occupation: str | None) -> str | None:
+    if not occupation:
+        return None
+    return OCCUPATION_ALIASES.get(
+        occupation, occupation if occupation in OCCUPATION_APPEARANCE else None
+    )
 
 
 def infer_knowledge_from_relationship(

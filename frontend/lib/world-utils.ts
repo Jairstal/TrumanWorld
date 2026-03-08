@@ -42,6 +42,7 @@ export function locationTone(locationType: string) {
   if (locationType === "shop") return "border-violet-200 bg-violet-50 text-violet-900";
   if (locationType === "home") return "border-pink-200 bg-pink-50 text-pink-900";
   if (locationType === "office") return "border-sky-200 bg-sky-50 text-sky-900";
+  if (locationType === "hospital") return "border-rose-200 bg-rose-50 text-rose-900";
   return "border-slate-200 bg-white text-slate-700";
 }
 
@@ -56,6 +57,7 @@ export function getLocationTypeLabel(locationType: string): string {
     shop: "商店",
     home: "住宅",
     office: "办公室",
+    hospital: "医院",
   };
   return labels[locationType] ?? locationType;
 }

@@ -7,6 +7,7 @@ from app.scenario.truman_world.rules import (
     build_perception_context_for_agent,
     build_role_context,
     build_scene_guidance,
+    build_observable_cues,
     filter_world_for_role,
 )
 from app.sim.world import AgentState, LocationState, WorldState
@@ -85,3 +86,14 @@ def test_build_perception_context_for_agent_uses_location_and_relationships():
     assert perceived["id"] == "meryl"
     assert perceived["relationship_level"] == "close_friend"
     assert perceived["known_occupation"] == "hospital staff"
+
+
+def test_build_observable_cues_supports_chinese_occupation_aliases():
+    cues = build_observable_cues(
+        occupation="医院职员",
+        location_type="hospital",
+        is_at_workplace=True,
+    )
+
+    assert cues["appearance"] == "穿着便装，可能刚下班"
+    assert cues["current_activity_hint"] == "在病区巡查或整理记录"

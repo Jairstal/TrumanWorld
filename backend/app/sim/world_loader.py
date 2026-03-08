@@ -48,6 +48,7 @@ async def load_tick_data(
             name=loc.name,
             capacity=loc.capacity,
             occupants=set(),
+            location_type=loc.location_type,
         )
         for loc in locations
     }
@@ -59,12 +60,16 @@ async def load_tick_data(
             home_location_id=agent.home_location_id,
             location_states=location_states,
         )
+        profile = agent.profile or {}
+        workplace_id = profile.get("workplace_location_id")
 
         agent_states[agent.id] = AgentState(
             id=agent.id,
             name=agent.name,
             location_id=location_id,
             status=agent.status or {},
+            occupation=agent.occupation,
+            workplace_id=workplace_id if isinstance(workplace_id, str) else None,
         )
         if location_id in location_states:
             location_states[location_id].occupants.add(agent.id)
