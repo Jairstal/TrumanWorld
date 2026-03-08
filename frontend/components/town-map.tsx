@@ -687,9 +687,16 @@ export function TownMap({
                 ) : null}
 
                 {node.occupants.map((agent, index) => {
+                  // agent 头像只分布在上半圆（避开下方的地点名称）
+                  // 角度范围：-150° 到 150°（避开下方 60° 区域）
                   const ringRadius = outerRadius + 22;
-                  const angle =
-                    (index / Math.max(node.occupants.length, 1)) * Math.PI * 2 - Math.PI / 2;
+                  const totalAgents = node.occupants.length;
+                  const startAngle = (-150 * Math.PI) / 180;
+                  const endAngle = (150 * Math.PI) / 180;
+                  // 单个 agent 时放在正上方，多个时均匀分布在上半圆
+                  const angle = totalAgents === 1
+                    ? -Math.PI / 2  // 正上方
+                    : startAngle + (index / (totalAgents - 1)) * (endAngle - startAngle);
                   const agentX = node.svgX + Math.cos(angle) * ringRadius;
                   const agentY = node.svgY + Math.sin(angle) * ringRadius;
                   const fill = agentColor(agent.id);
