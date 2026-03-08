@@ -20,4 +20,3 @@ export function NavLink({ href, eyebrow, title, children }: NavLinkProps) {
     </Link>
   );
 }
-

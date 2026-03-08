@@ -51,7 +51,7 @@ export function AgentAvatar({
   const [useCustomLogo, setUseCustomLogo] = useState(
     configId ? CUSTOM_LOGO_AGENTS.has(configId) : false
   );
-  
+
   // 使用 agentId 作为种子生成确定性头像（作为后备）
   const avatarSvg = useMemo(() => {
     const avatar = createAvatar(notionists, {
@@ -91,7 +91,7 @@ export function AgentAvatar({
           }}
         />
       )}
-      
+
       {/* 状态边框 */}
       {showStatusRing && (
         <span
@@ -99,7 +99,7 @@ export function AgentAvatar({
           style={{ borderColor: statusStyle.color }}
         />
       )}
-      
+
       {/* 头像 */}
       <div
         className="relative overflow-hidden rounded-full bg-white shadow-sm"
@@ -125,7 +125,7 @@ export function AgentAvatar({
           />
         )}
       </div>
-      
+
       {/* 职业小图标 */}
       {occupation && (
         <span

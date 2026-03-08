@@ -17,4 +17,3 @@ export function SectionCard({ title, description, children }: SectionCardProps) 
     </section>
   );
 }
-

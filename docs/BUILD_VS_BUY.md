@@ -147,7 +147,7 @@ TrumanWorld 需要自己定义数据模型，但 ORM 和数据库访问层不需
 
 ### 说明
 
-MVP 阶段完全没必要上独立向量数据库。  
+MVP 阶段完全没必要上独立向量数据库。
 你需要自己定义 memory schema，但不需要自己实现向量索引系统。
 
 ---
@@ -216,7 +216,7 @@ MVP 没必要自建 design system。
 
 ### 说明
 
-不要绕过 SDK 自己造一层 agent 执行协议。  
+不要绕过 SDK 自己造一层 agent 执行协议。
 你要写的是 TrumanWorld 的 runtime 封装，而不是替代 SDK。
 
 ---

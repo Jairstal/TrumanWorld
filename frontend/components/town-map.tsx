@@ -298,8 +298,8 @@ export function TownMap({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45 }}
       className={`flex h-full min-h-[460px] flex-col rounded-[28px] border p-4 shadow-sm backdrop-blur transition-colors duration-1000 ${
-        timeStyle.isDark 
-          ? "border-slate-700/50 bg-slate-800/80" 
+        timeStyle.isDark
+          ? "border-slate-700/50 bg-slate-800/80"
           : "border-white/70 bg-white/80"
       }`}
     >
@@ -309,8 +309,8 @@ export function TownMap({
             <span className="text-xs uppercase tracking-[0.22em] text-moss">小镇地图</span>
             {/* 当前时段指示 */}
             <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs ${
-              timeStyle.isDark 
-                ? "bg-slate-700 text-slate-200" 
+              timeStyle.isDark
+                ? "bg-slate-700 text-slate-200"
                 : "bg-slate-100 text-slate-600"
             }`}>
               <span>{timeStyle.icon}</span>
@@ -377,8 +377,8 @@ export function TownMap({
             type="button"
             onClick={() => zoomMap(0.85)}
             className={`rounded-full border px-2 py-1 transition hover:border-moss hover:text-moss ${
-              timeStyle.isDark 
-                ? "border-slate-600 bg-slate-700 text-slate-300" 
+              timeStyle.isDark
+                ? "border-slate-600 bg-slate-700 text-slate-300"
                 : "border-slate-200 bg-white text-slate-600"
             }`}
           >
@@ -388,8 +388,8 @@ export function TownMap({
             type="button"
             onClick={() => zoomMap(1.15)}
             className={`rounded-full border px-2 py-1 transition hover:border-moss hover:text-moss ${
-              timeStyle.isDark 
-                ? "border-slate-600 bg-slate-700 text-slate-300" 
+              timeStyle.isDark
+                ? "border-slate-600 bg-slate-700 text-slate-300"
                 : "border-slate-200 bg-white text-slate-600"
             }`}
           >
@@ -399,8 +399,8 @@ export function TownMap({
             type="button"
             onClick={resetView}
             className={`rounded-full border px-2 py-1 transition hover:border-moss hover:text-moss ${
-              timeStyle.isDark 
-                ? "border-slate-600 bg-slate-700 text-slate-300" 
+              timeStyle.isDark
+                ? "border-slate-600 bg-slate-700 text-slate-300"
                 : "border-slate-200 bg-white text-slate-600"
             }`}
           >
@@ -408,12 +408,12 @@ export function TownMap({
           </button>
         </div>
       </div>
-      <div 
+      <div
         className={`relative min-h-0 flex-1 overflow-hidden rounded-[24px] border border-white/70 bg-gradient-to-br ${timeStyle.bgGradient} transition-all duration-1000`}
       >
         {/* 夜晚遮罩层 */}
         {timeStyle.isDark && (
-          <div 
+          <div
             className="pointer-events-none absolute inset-0 z-10 transition-opacity duration-1000"
             style={{ backgroundColor: timeStyle.overlayColor }}
           />
@@ -547,12 +547,12 @@ export function TownMap({
                     fill={heatLevel.glowColor}
                     filter={node.heat > 0.6 ? "url(#heatGlowStrong)" : "url(#heatGlow)"}
                     initial={{ opacity: 0 }}
-                    animate={{ 
+                    animate={{
                       opacity: [0.4 + node.heat * 0.3, 0.6 + node.heat * 0.3, 0.4 + node.heat * 0.3],
                       scale: [1, 1.05, 1]
                     }}
-                    transition={{ 
-                      duration: 3 - node.heat, 
+                    transition={{
+                      duration: 3 - node.heat,
                       repeat: Infinity,
                       ease: "easeInOut"
                     }}
@@ -583,11 +583,11 @@ export function TownMap({
                     strokeWidth={2 + node.heat * 2}
                     strokeDasharray={`${node.heat * 20} ${(1 - node.heat) * 20}`}
                     initial={{ opacity: 0, rotate: 0 }}
-                    animate={{ 
+                    animate={{
                       opacity: 0.6 + node.heat * 0.4,
                       rotate: 360
                     }}
-                    transition={{ 
+                    transition={{
                       rotate: { duration: 20, repeat: Infinity, ease: "linear" },
                       opacity: { duration: 0.5 }
                     }}
@@ -777,8 +777,8 @@ export function TownMap({
           })}
         </svg>
         <div className={`pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 rounded-b-[24px] px-4 py-2 text-xs text-slate-400 ${
-          timeStyle.isDark 
-            ? "bg-gradient-to-t from-slate-900/80 to-transparent" 
+          timeStyle.isDark
+            ? "bg-gradient-to-t from-slate-900/80 to-transparent"
             : "bg-gradient-to-t from-white/80 to-transparent"
         }`}>
           <p>点击地点查看详情。光晕强度表示活动热度。{timeStyle.isDark && "黄色窗户表示有人。"}</p>
