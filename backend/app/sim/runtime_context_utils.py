@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from app.scenario.truman_world.types import DirectorGuidance, get_world_role
 from app.sim.types import AgentDecisionSnapshot, RuntimeWorldContext
-from app.sim.world_queries import get_agent, get_location
+from app.sim.world_queries import get_agent, get_location, get_location_occupants
 
 if TYPE_CHECKING:
     from app.sim.world import WorldState
@@ -39,6 +39,12 @@ def build_agent_world_context(
         if location:
             context["current_location_name"] = location.name
             context["current_location_type"] = location.location_type
+
+    # Add all occupants at current location (for multi-agent awareness)
+    if current_location_id:
+        context["location_occupants"] = get_location_occupants(
+            world, current_location_id, exclude_agent_id=None
+        )
 
     if nearby_agent_id:
         nearby_agent = get_agent(world, nearby_agent_id)

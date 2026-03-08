@@ -11,8 +11,9 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.scenario.base import Scenario
-    from app.sim.world import AgentState, LocationState
     from app.store.models import Agent, SimulationRun
+
+from app.sim.world import AgentState, LocationState
 
 
 async def build_agent_recent_events(
@@ -29,11 +30,13 @@ async def build_agent_recent_events(
 
     for agent in agents:
         include_director_system_events = get_world_role(agent.profile) == "cast"
+        current_location_id = agent_states.get(agent.id, AgentState()).location_id
         recent_events = await agent_repo.list_recent_events(
             run_id,
             agent.id,
             limit=5,
             include_director_system_events=include_director_system_events,
+            current_location_id=current_location_id,
         )
         agent_recent_events[agent.id] = [
             context_builder.format_event_for_context(evt, agent_states, location_states)

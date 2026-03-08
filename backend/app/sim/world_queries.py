@@ -39,6 +39,40 @@ def list_other_occupants(
     return [agent_id for agent_id in sorted(location.occupants) if agent_id != viewer_agent_id]
 
 
+def get_location_occupants(
+    world: "WorldState", location_id: str | None, exclude_agent_id: str | None = None
+) -> list[dict[str, Any]]:
+    """Get all agents at a location with their basic info.
+
+    Args:
+        world: World state
+        location_id: Location ID
+        exclude_agent_id: Optional agent ID to exclude from results
+
+    Returns:
+        List of agent info dicts with id, name, occupation, workplace_id, is_at_workplace
+    """
+    location = get_location(world, location_id)
+    if location is None:
+        return []
+
+    occupants = []
+    for agent_id in location.occupants:
+        if agent_id == exclude_agent_id:
+            continue
+        agent = get_agent(world, agent_id)
+        if agent is None:
+            continue
+        occupants.append({
+            "id": agent.id,
+            "name": agent.name,
+            "occupation": agent.occupation,
+            "workplace_id": agent.workplace_id,
+            "is_at_workplace": agent.workplace_id == location_id,
+        })
+    return occupants
+
+
 def build_familiarity_map(relationships: Iterable[Any]) -> dict[str, float]:
     return {
         relationship.other_agent_id: float(relationship.familiarity)

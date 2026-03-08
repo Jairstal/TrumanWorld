@@ -165,15 +165,34 @@ class AgentRepository:
         agent_id: str,
         limit: int = 10,
         include_director_system_events: bool = False,
+        current_location_id: str | None = None,
     ) -> Sequence[Event]:
+        """List recent events for an agent.
+
+        Includes:
+        - Events where agent is actor or target
+        - Events at agent's current location (for observer awareness)
+        - Director system events (if enabled)
+        """
+        # Direct participation events
         agent_events = or_(Event.actor_agent_id == agent_id, Event.target_agent_id == agent_id)
         event_scope = agent_events
+
+        # Location-based observer events (same location, not already included)
+        if current_location_id:
+            location_events = and_(
+                Event.location_id == current_location_id,
+                Event.actor_agent_id != agent_id,
+                Event.target_agent_id != agent_id,
+            )
+            event_scope = or_(agent_events, location_events)
+
         if include_director_system_events:
             director_events = and_(
                 Event.visibility == "system",
                 Event.event_type.startswith("director_"),
             )
-            event_scope = or_(agent_events, director_events)
+            event_scope = or_(event_scope, director_events)
 
         stmt: Select[tuple[Event]] = (
             select(Event)
