@@ -188,11 +188,14 @@ export function formatSimTime(world: WorldSnapshot) {
 }
 
 /**
- * Convert a tick number to a human-readable simulation time string.
+ * Convert a tick number to a human-readable simulation time string (HH:MM).
  *
- * Strategy: derive the world start time from `world_clock.iso` (which is the
- * sim-time of the *current* tick) then rewind by `(currentTick - tickNo) * tickMinutes`
- * minutes.  Falls back to a simple offset from 00:00 when no clock is available.
+ * Strategy:
+ * - `clockIso` is the world sim-time ISO string for `currentTick`
+ *   (e.g. "2026-03-02T09:30:00+00:00"). We extract HH:MM directly from the
+ *   ISO string (characters 11-15) to avoid timezone conversion, then compute
+ *   the offset in minutes: (tickNo - currentTick) * tickMinutes.
+ * - Falls back to treating tick 0 as 00:00 when no clock is available.
  */
 export function tickToSimTime(
   tickNo: number,
@@ -201,13 +204,16 @@ export function tickToSimTime(
   clockIso?: string,
 ): string {
   if (clockIso) {
-    // Derive start = clockIso - currentTick * tickMinutes
-    const currentMs = new Date(clockIso).getTime();
-    const startMs = currentMs - currentTick * tickMinutes * 60 * 1000;
-    const eventMs = startMs + tickNo * tickMinutes * 60 * 1000;
-    const d = new Date(eventMs);
-    const hh = d.getHours().toString().padStart(2, "0");
-    const mm = d.getMinutes().toString().padStart(2, "0");
+    // Extract HH:MM directly from ISO string (avoids local timezone conversion)
+    // ISO format: 2026-03-02T09:30:00+00:00 → index 11..15 = "09:30"
+    const timePart = clockIso.substring(11, 16); // "HH:MM"
+    const [hhStr, mmStr] = timePart.split(":");
+    const currentTotalMinutes = parseInt(hhStr, 10) * 60 + parseInt(mmStr, 10);
+    const offsetMinutes = (tickNo - currentTick) * tickMinutes;
+    // Keep result within [0, 24*60) wrapping around midnight
+    const totalMinutes = ((currentTotalMinutes + offsetMinutes) % (24 * 60) + 24 * 60) % (24 * 60);
+    const hh = Math.floor(totalMinutes / 60).toString().padStart(2, "0");
+    const mm = (totalMinutes % 60).toString().padStart(2, "0");
     return `${hh}:${mm}`;
   }
   // Fallback: treat tick 0 as 00:00

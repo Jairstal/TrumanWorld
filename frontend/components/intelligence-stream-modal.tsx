@@ -39,13 +39,18 @@ export function IntelligenceStreamModal({
   const [locationFilter, setLocationFilter] = useState<LocationFilter>(null);
 
   // Full event list loaded independently from world snapshot
+  // Use world.recent_events as initial value; updated by API on open
+  const recentEventsRef = useRef<WorldEvent[]>(world.recent_events);
+  recentEventsRef.current = world.recent_events; // keep ref in sync with latest snapshot
+
   const [allEvents, setAllEvents] = useState<WorldEvent[]>(world.recent_events);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // Track which runId has been loaded to avoid redundant fetches within the same open session
   const loadedForRun = useRef<string | null>(null);
 
-  const loadAllEvents = useCallback(async () => {
-    if (loadedForRun.current === runId) return;
+  const loadAllEvents = useCallback(async (force = false) => {
+    if (!force && loadedForRun.current === runId) return;
     setIsLoading(true);
     setLoadError(false);
     const result = await getRunEventsResult(runId, undefined, 500);
@@ -55,10 +60,11 @@ export function IntelligenceStreamModal({
       loadedForRun.current = runId;
     } else {
       setLoadError(true);
-      // Fall back to world snapshot events
-      setAllEvents(world.recent_events);
+      // Fall back to latest world snapshot events
+      setAllEvents(recentEventsRef.current);
     }
-  }, [runId, world.recent_events]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId]); // intentionally exclude recentEventsRef – it's a ref, stable by design
 
   useEffect(() => {
     if (isOpen) {
@@ -187,7 +193,7 @@ export function IntelligenceStreamModal({
               {loadError && (
                 <button
                   type="button"
-                  onClick={loadAllEvents}
+                  onClick={() => loadAllEvents(true)}
                   className="mt-3 rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs text-slate-600 hover:border-moss hover:text-moss"
                 >
                   重试加载
