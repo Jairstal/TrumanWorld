@@ -1,121 +1,26 @@
-export type RunSummary = {
-  id: string;
-  name: string;
-  status: string;
-  current_tick?: number;
-  tick_minutes?: number;
-  was_running_before_restart?: boolean;
-};
+import type {
+  AgentDetails,
+  AgentSummary,
+  CreateRunResponse,
+  RunSummary,
+  TickResponse,
+  TimelineEvent,
+  WorldSnapshot,
+} from "@/lib/types";
 
-export type CreateRunResponse = {
-  id: string;
-  name: string;
-  status: string;
-};
+export type {
+  AgentDetails,
+  AgentSummary,
+  CreateRunResponse,
+  RunSummary,
+  TickResponse,
+  TimelineEvent,
+  WorldClock,
+  WorldEvent,
+  WorldLocation,
+  WorldSnapshot,
+} from "@/lib/types";
 
-export type TickResponse = {
-  run_id: string;
-  tick_no: number;
-  accepted_count: number;
-  rejected_count: number;
-};
-
-export type TimelineEvent = {
-  id: string;
-  tick_no: number;
-  event_type: string;
-  importance?: number;
-  payload: Record<string, unknown>;
-};
-
-export type WorldClock = {
-  iso: string;
-  date: string;
-  time: string;
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  weekday: number;
-  weekday_name: string;
-  weekday_name_cn: string;
-  is_weekend: boolean;
-  time_period: string;
-  time_period_cn: string;
-};
-
-export type WorldSnapshot = {
-  run: RunSummary;
-  world_clock?: WorldClock;
-  locations: Array<{
-    id: string;
-    name: string;
-    location_type: string;
-    x: number;
-    y: number;
-    capacity: number;
-    occupants: AgentSummary[];
-  }>;
-  recent_events: Array<{
-    id: string;
-    tick_no: number;
-    event_type: string;
-    location_id?: string;
-    actor_agent_id?: string;
-    target_agent_id?: string;
-    actor_name?: string;
-    target_name?: string;
-    location_name?: string;
-    payload: Record<string, unknown>;
-  }>;
-};
-
-export type AgentDetails = {
-  run_id: string;
-  agent_id: string;
-  name: string;
-  occupation?: string;
-  current_goal?: string;
-  status?: Record<string, unknown>;
-  recent_events: Array<{
-    id: string;
-    tick_no: number;
-    event_type: string;
-    actor_agent_id?: string;
-    actor_name?: string;
-    target_agent_id?: string;
-    target_name?: string;
-    location_id?: string;
-    location_name?: string;
-    payload: Record<string, unknown>;
-  }>;
-  memories: Array<{
-    id: string;
-    memory_type: string;
-    summary?: string;
-    content: string;
-    importance?: number;
-    related_agent_id?: string;
-    related_agent_name?: string;
-  }>;
-  relationships: Array<{
-    other_agent_id: string;
-    other_agent_name?: string;
-    familiarity: number;
-    trust: number;
-    affinity: number;
-    relation_type: string;
-  }>;
-};
-
-export type AgentSummary = {
-  id: string;
-  name: string;
-  occupation?: string;
-  current_goal?: string;
-  current_location_id?: string;
-};
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000/api";
 
@@ -130,9 +35,17 @@ function resolveApiBaseUrl() {
   return publicBaseUrl ?? DEFAULT_API_BASE_URL;
 }
 
+export function getApiBaseUrl() {
+  return resolveApiBaseUrl();
+}
+
+export function buildApiUrl(path: string) {
+  return `${resolveApiBaseUrl()}${path}`;
+}
+
 async function safeFetch<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    const response = await fetch(buildApiUrl(path), {
       cache: "no-store",
       headers: {
         Accept: "application/json",
@@ -151,7 +64,7 @@ async function safeFetch<T>(path: string, fallback: T): Promise<T> {
 
 async function safePost<T>(path: string, body: unknown, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    const response = await fetch(buildApiUrl(path), {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -228,7 +141,7 @@ export async function injectDirectorEvent(
 
 async function safeDelete<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+    const response = await fetch(buildApiUrl(path), {
       method: "DELETE",
       headers: {
         Accept: "application/json",
@@ -251,4 +164,36 @@ export async function deleteRun(runId: string): Promise<{ run_id: string; status
 
 export async function restoreAllRuns(): Promise<RunSummary[]> {
   return safePost<RunSummary[]>('/runs/restore-all', {}, []);
+}
+
+export async function fetchApiOrThrow<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export async function fetchApiOrFallback<T>(url: string, fallback: T): Promise<T> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      return fallback;
+    }
+
+    return response.json() as Promise<T>;
+  } catch {
+    return fallback;
+  }
 }

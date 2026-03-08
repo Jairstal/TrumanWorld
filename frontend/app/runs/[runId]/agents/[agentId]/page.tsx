@@ -1,35 +1,14 @@
 import Link from "next/link";
 
 import { AgentAvatar } from "@/components/agent-avatar";
-import { inferAgentStatus } from "@/lib/agent-utils";
+import { inferAgentStatus, relationshipTone } from "@/lib/agent-utils";
 import { MetricChip } from "@/components/metric-chip";
 import { getAgent } from "@/lib/api";
+import { describeAgentEvent } from "@/lib/event-utils";
 
 type AgentPageProps = {
   params: Promise<{ runId: string; agentId: string }>;
 };
-
-function describeAgentEvent(event: NonNullable<Awaited<ReturnType<typeof getAgent>>>["recent_events"][number]) {
-  if (event.event_type === "talk" && event.target_name) {
-    return `与 ${event.target_name} 对话`;
-  }
-  if (event.event_type === "move" && event.location_name) {
-    return `前往 ${event.location_name}`;
-  }
-  if (event.event_type === "work" && event.location_name) {
-    return `在 ${event.location_name} 工作`;
-  }
-  if (event.event_type === "rest" && event.location_name) {
-    return `在 ${event.location_name} 休息`;
-  }
-  return event.event_type;
-}
-
-function relationshipTone(value: number) {
-  if (value >= 0.75) return "bg-emerald-500";
-  if (value >= 0.45) return "bg-amber-400";
-  return "bg-slate-300";
-}
 
 export default async function AgentPage({ params }: AgentPageProps) {
   const { runId, agentId } = await params;

@@ -3,19 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import useSWR from "swr";
-import type { RunSummary } from "@/lib/api";
-
-const API_BASE =
-  (typeof window !== "undefined" ? process.env.NEXT_PUBLIC_API_BASE_URL : undefined) ??
-  "http://127.0.0.1:8000/api";
-
-async function runsFetcher(url: string): Promise<RunSummary[]> {
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) return [];
-  return response.json() as Promise<RunSummary[]>;
-}
+import { buildApiUrl, fetchApiOrFallback } from "@/lib/api";
+import type { RunSummary } from "@/lib/types";
 
 type AppShellProps = {
   children: ReactNode;
@@ -36,19 +27,21 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: AppShellProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { data: runs } = useSWR<RunSummary[]>(`${API_BASE}/runs`, runsFetcher, {
-    refreshInterval: 10000,
-  });
+  const { data: runs } = useSWR<RunSummary[]>(
+    buildApiUrl("/runs"),
+    (url: string) => fetchApiOrFallback<RunSummary[]>(url, []),
+    {
+      refreshInterval: 10000,
+    },
+  );
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
-      {/* 可折叠侧边栏 */}
       <nav
         className={`flex flex-shrink-0 flex-col border-r border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,249,252,0.72))] backdrop-blur-xl transition-all duration-300 ${
           isCollapsed ? "w-16" : "w-[272px]"
         }`}
       >
-        {/* Logo 区域 */}
         <div className="flex items-center justify-between border-b border-white/60 px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-md shadow-slate-900/10">
@@ -62,7 +55,6 @@ export function AppShell({ children }: AppShellProps) {
             )}
           </div>
 
-          {/* 折叠按钮 */}
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
@@ -82,7 +74,6 @@ export function AppShell({ children }: AppShellProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto py-3">
-          {/* 主要导航 */}
           <div className="px-3">
             {NAV_ITEMS.map((item) => (
               <SidebarNavItemWide
@@ -96,7 +87,6 @@ export function AppShell({ children }: AppShellProps) {
             ))}
           </div>
 
-          {/* Runs 列表 */}
           {!isCollapsed && runs && runs.length > 0 && (
             <div className="mt-4 px-3">
               <p className="mb-2 px-2 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
@@ -130,7 +120,6 @@ export function AppShell({ children }: AppShellProps) {
   );
 }
 
-// 宽版导航项组件
 function SidebarNavItemWide({
   href,
   icon,
@@ -169,7 +158,6 @@ function SidebarNavItemWide({
   );
 }
 
-// Run 列表项组件
 function RunListItem({ run }: { run: RunSummary }) {
   const pathname = usePathname();
   const isActive = pathname.startsWith(`/runs/${run.id}`);

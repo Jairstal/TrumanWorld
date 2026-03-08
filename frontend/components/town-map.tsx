@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { WorldSnapshot, AgentSummary } from "@/lib/api";
+import type { AgentSummary, WorldSnapshot } from "@/lib/types";
 
 interface LocationNode {
   id: string;

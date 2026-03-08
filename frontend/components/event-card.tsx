@@ -1,9 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { WorldSnapshot } from "@/lib/api";
-
-type WorldEvent = WorldSnapshot["recent_events"][number];
+import type { WorldEvent } from "@/lib/types";
+import { describeWorldEvent, getEventMeta } from "@/lib/event-utils";
 
 interface EventCardProps {
   event: WorldEvent;
@@ -13,49 +12,6 @@ interface EventCardProps {
   locationNameMap: Record<string, string>;
 }
 
-// 事件类型配置
-const EVENT_CONFIG: Record<string, { 
-  icon: string; 
-  label: string; 
-  color: string;
-}> = {
-  talk: { 
-    icon: "💬", 
-    label: "对话", 
-    color: "#ec4899",
-  },
-  move: { 
-    icon: "🚶", 
-    label: "移动", 
-    color: "#10b981",
-  },
-  work: { 
-    icon: "⚒️", 
-    label: "工作", 
-    color: "#f59e0b",
-  },
-  rest: { 
-    icon: "😴", 
-    label: "休息", 
-    color: "#6366f1",
-  },
-  director_inject: { 
-    icon: "📢", 
-    label: "导演注入", 
-    color: "#dc2626",
-  },
-  plan: { 
-    icon: "📋", 
-    label: "计划", 
-    color: "#8b5cf6",
-  },
-  reflect: { 
-    icon: "🔍", 
-    label: "反思", 
-    color: "#06b6d4",
-  },
-};
-
 export function EventCard({
   event,
   index,
@@ -63,18 +19,11 @@ export function EventCard({
   agentNameMap,
   locationNameMap
 }: EventCardProps) {
-  // isLatest 用于高亮样式，保留参数以保持接口兼容性
-  const config = EVENT_CONFIG[event.event_type] || {
-    icon: "✨",
-    label: event.event_type,
-    color: "#6b7280",
-  };
+  const config = getEventMeta(event.event_type);
 
-  const description = describeEvent(event, agentNameMap, locationNameMap);
+  const description = describeWorldEvent(event, agentNameMap, locationNameMap);
   const messageText = event.payload.message;
   const hasMessage = typeof messageText === "string" && messageText.length > 0;
-  
-  // 对于 talk 事件，如果没有具体消息，显示一个默认提示
   const showTalkHint = event.event_type === "talk" && !hasMessage;
 
   return (
@@ -103,7 +52,6 @@ export function EventCard({
         style={{ backgroundColor: config.color }}
       />
       <div className="relative pl-1">
-        {/* 头部：图标 + 类型 + Tick */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2">
             <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-slate-50 text-sm shadow-sm">
@@ -141,7 +89,6 @@ export function EventCard({
           </div>
         </div>
 
-        {/* 参与者标签 */}
         <div className="mt-2 flex flex-wrap gap-1.5">
           {event.actor_agent_id && (
             <EventTag
@@ -172,7 +119,6 @@ export function EventCard({
   );
 }
 
-// 事件标签组件
 function EventTag({ label, type }: { label: string; type: "actor" | "target" | "location" }) {
   const colors = {
     actor: "bg-sky-50 text-sky-700 border border-sky-100",
@@ -185,37 +131,4 @@ function EventTag({ label, type }: { label: string; type: "actor" | "target" | "
       {label}
     </span>
   );
-}
-
-// 描述事件
-function describeEvent(
-  event: WorldEvent,
-  nameMap: Record<string, string>,
-  locationMap: Record<string, string>,
-): string {
-  const actor = nameMap[event.actor_agent_id ?? ""] || event.actor_agent_id || "有人";
-  const target = nameMap[event.target_agent_id ?? ""] || event.target_agent_id || "某人";
-  const atPlace = locationMap[event.location_id ?? ""] || event.location_id || "小镇";
-  const toPlace =
-    locationMap[String(event.payload.to_location_id ?? "")] ||
-    String(event.payload.to_location_id || atPlace);
-
-  switch (event.event_type) {
-    case "move":
-      return `${actor} 前往了 ${toPlace}`;
-    case "talk":
-      return `${actor} 与 ${target} 展开交谈`;
-    case "work":
-      return `${actor} 在 ${atPlace} 专心工作`;
-    case "rest":
-      return `${actor} 在 ${atPlace} 休息`;
-    case "director_inject":
-      return `导演播报：${String(event.payload.message || "发生了一件大事")}`;
-    case "plan":
-      return `${actor} 制定了新的计划`;
-    case "reflect":
-      return `${actor} 陷入了沉思`;
-    default:
-      return `${atPlace} 发生了一些事情`;
-  }
 }

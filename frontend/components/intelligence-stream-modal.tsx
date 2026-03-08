@@ -3,11 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import type { WorldSnapshot } from "@/lib/api";
+import type { WorldSnapshot } from "@/lib/types";
 import { EventCard } from "@/components/event-card";
+import {
+  buildWorldNameMaps,
+  filterWorldEvents,
+  type EventFilter,
+} from "@/lib/world-utils";
 
-type WorldEvent = WorldSnapshot["recent_events"][number];
-type EventFilter = "all" | "social" | "activity" | "movement";
 type LocationFilter = string | null;
 
 const EVENT_FILTERS: Array<{ id: EventFilter; label: string }> = [
@@ -34,33 +37,14 @@ export function IntelligenceStreamModal({
   const [locationFilter, setLocationFilter] = useState<LocationFilter>(null);
 
   const { agentNameMap, locationNameMap, visibleEvents, latestTick } = useMemo(() => {
-    const namesByAgent: Record<string, string> = {};
-    const namesByLocation: Record<string, string> = {};
-
-    for (const location of world.locations) {
-      namesByLocation[location.id] = location.name;
-      for (const agent of location.occupants) {
-        namesByAgent[agent.id] = agent.name;
-      }
-    }
-
-    let filtered = world.recent_events.filter((event) => {
-      if (eventFilter === "all") return true;
-      if (eventFilter === "social") return event.event_type === "talk";
-      if (eventFilter === "movement") return event.event_type === "move";
-      return event.event_type === "work" || event.event_type === "rest";
-    });
-
-    // Apply location filter
-    if (locationFilter) {
-      filtered = filtered.filter((event) => event.location_id === locationFilter);
-    }
+    const { agentNameMap, locationNameMap } = buildWorldNameMaps(world);
+    const filtered = filterWorldEvents(world.recent_events, eventFilter, locationFilter);
 
     const tick = world.recent_events[0]?.tick_no ?? world.run.current_tick ?? 0;
 
     return {
-      agentNameMap: namesByAgent,
-      locationNameMap: namesByLocation,
+      agentNameMap,
+      locationNameMap,
       visibleEvents: filtered,
       latestTick: tick,
     };
@@ -76,14 +60,12 @@ export function IntelligenceStreamModal({
         exit={{ opacity: 0, scale: 0.95 }}
         className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl"
       >
-        {/* 头部 */}
         <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-ink">世界情报流</h2>
               <p className="text-sm text-slate-500">实时事件监控中心</p>
             </div>
-            {/* 关闭按钮 */}
             <button
               type="button"
               onClick={onClose}
@@ -94,9 +76,7 @@ export function IntelligenceStreamModal({
               </svg>
             </button>
           </div>
-          {/* 筛选器 */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {/* 事件类型筛选 */}
             <div className="flex gap-1">
               {EVENT_FILTERS.map((filter) => {
                 const active = filter.id === eventFilter;
@@ -117,7 +97,6 @@ export function IntelligenceStreamModal({
               })}
             </div>
             <div className="h-4 w-px bg-slate-200" />
-            {/* 地点筛选 */}
             <div className="flex flex-wrap gap-1">
               <button
                 type="button"
@@ -148,13 +127,12 @@ export function IntelligenceStreamModal({
           </div>
         </div>
 
-        {/* 统计信息 */}
         <div className="grid grid-cols-4 gap-4 border-b border-slate-100 bg-slate-50/50 px-6 py-3">
           {[
             { label: "总事件数", value: world.recent_events.length },
             { label: "当前 Tick", value: world.run.current_tick ?? 0 },
-            { label: "活跃地点", value: world.locations.filter(l => l.occupants.length > 0).length },
-            { label: "居民总数", value: world.locations.reduce((sum, l) => sum + l.occupants.length, 0) },
+            { label: "活跃地点", value: world.locations.filter((location) => location.occupants.length > 0).length },
+            { label: "居民总数", value: world.locations.reduce((sum, location) => sum + location.occupants.length, 0) },
           ].map(({ label, value }) => (
             <div key={label} className="text-center">
               <p className="text-2xl font-semibold text-ink">{value}</p>
@@ -163,7 +141,6 @@ export function IntelligenceStreamModal({
           ))}
         </div>
 
-        {/* 事件列表 */}
         <div className="flex-1 overflow-y-auto bg-slate-50/30 p-6">
           {visibleEvents.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-slate-400">
@@ -190,7 +167,6 @@ export function IntelligenceStreamModal({
           )}
         </div>
 
-        {/* 底部 */}
         <div className="border-t border-slate-100 bg-white px-6 py-3">
           <div className="flex items-center justify-between text-sm text-slate-500">
             <span>显示最近 {visibleEvents.length} 条事件</span>

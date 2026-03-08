@@ -1,55 +1,11 @@
 import Link from "next/link";
 
 import { getTimeline } from "@/lib/api";
+import { describeTimelineEvent, getEventMeta } from "@/lib/event-utils";
 
 type TimelinePageProps = {
   params: Promise<{ runId: string }>;
 };
-
-const EVENT_LABELS: Record<string, { icon: string; label: string; chip: string }> = {
-  talk: { icon: "💬", label: "对话", chip: "bg-rose-50 text-rose-700 border border-rose-100" },
-  move: { icon: "🚶", label: "移动", chip: "bg-emerald-50 text-emerald-700 border border-emerald-100" },
-  work: { icon: "⚒️", label: "工作", chip: "bg-amber-50 text-amber-700 border border-amber-100" },
-  rest: { icon: "😴", label: "休息", chip: "bg-indigo-50 text-indigo-700 border border-indigo-100" },
-  director_inject: { icon: "📢", label: "导演注入", chip: "bg-red-50 text-red-700 border border-red-100" },
-  plan: { icon: "📋", label: "制定计划", chip: "bg-violet-50 text-violet-700 border border-violet-100" },
-  reflect: { icon: "🔍", label: "反思", chip: "bg-cyan-50 text-cyan-700 border border-cyan-100" },
-};
-
-function describeTimelineEvent(event: { event_type: string; payload: Record<string, unknown> }) {
-  const payload = event.payload;
-  if (event.event_type === "talk") {
-    const msg = payload.message ? `：「${String(payload.message)}」` : "";
-    const actor = String(payload.actor_name ?? payload.actor_agent_id ?? "某人");
-    const target = String(payload.target_name ?? payload.target_agent_id ?? "某人");
-    return `${actor} 和 ${target} 展开了交谈${msg}`;
-  }
-  if (event.event_type === "move") {
-    const actor = String(payload.actor_name ?? payload.actor_agent_id ?? "某人");
-    const to = String(payload.to_location_name ?? payload.to_location_id ?? "某地");
-    return `${actor} 前往了 ${to}`;
-  }
-  if (event.event_type === "work") {
-    const actor = String(payload.actor_name ?? payload.actor_agent_id ?? "某人");
-    return `${actor} 专心工作中`;
-  }
-  if (event.event_type === "rest") {
-    const actor = String(payload.actor_name ?? payload.actor_agent_id ?? "某人");
-    return `${actor} 暂时休息`;
-  }
-  if (event.event_type === "director_inject") {
-    return `导演播报：${String(payload.message ?? "发生了一件大事")}`;
-  }
-  if (event.event_type === "plan") {
-    const actor = String(payload.actor_name ?? payload.actor_agent_id ?? "某人");
-    return `${actor} 制定了今日计划`;
-  }
-  if (event.event_type === "reflect") {
-    const actor = String(payload.actor_name ?? payload.actor_agent_id ?? "某人");
-    return `${actor} 进行了深度反思`;
-  }
-  return event.event_type;
-}
 
 export default async function TimelinePage({ params }: TimelinePageProps) {
   const { runId } = await params;
@@ -133,11 +89,7 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
 
                     <div className="space-y-3">
                       {events.map((event) => {
-                        const meta = EVENT_LABELS[event.event_type] ?? {
-                          icon: "•",
-                          label: event.event_type,
-                          chip: "bg-slate-50 text-slate-700 border border-slate-100",
-                        };
+                        const meta = getEventMeta(event.event_type);
 
                         return (
                           <article key={event.id} className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">

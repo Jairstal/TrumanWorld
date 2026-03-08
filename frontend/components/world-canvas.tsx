@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import type { WorldSnapshot } from "@/lib/api";
+import type { WorldEvent, WorldSnapshot } from "@/lib/types";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { inferAgentStatus } from "@/lib/agent-utils";
 import { EventCard } from "@/components/event-card";
@@ -12,9 +12,17 @@ import { TownMap } from "@/components/town-map";
 import { IntelligenceStreamModal } from "@/components/intelligence-stream-modal";
 import { LocationDetailModal } from "@/components/location-detail-modal";
 import { useWorld } from "@/components/world-context";
-
-type WorldEvent = WorldSnapshot["recent_events"][number];
-type EventFilter = "all" | "social" | "activity" | "movement";
+import {
+  beatBadge,
+  buildWorldNameMaps,
+  eventMatchesFilter,
+  filterWorldEvents,
+  formatGoal,
+  formatSimTime,
+  locationBeat,
+  locationTone,
+  type EventFilter,
+} from "@/lib/world-utils";
 
 const EVENT_FILTERS: Array<{ id: EventFilter; label: string }> = [
   { id: "all", label: "全部事件" },
@@ -22,60 +30,6 @@ const EVENT_FILTERS: Array<{ id: EventFilter; label: string }> = [
   { id: "activity", label: "动作" },
   { id: "movement", label: "移动" },
 ];
-
-function locationTone(locationType: string) {
-  if (locationType === "cafe") return "border-amber-200 bg-amber-50 text-amber-900";
-  if (locationType === "plaza") return "border-sky-200 bg-sky-50 text-sky-900";
-  if (locationType === "park") return "border-emerald-200 bg-emerald-50 text-emerald-900";
-  if (locationType === "shop") return "border-violet-200 bg-violet-50 text-violet-900";
-  if (locationType === "home") return "border-pink-200 bg-pink-50 text-pink-900";
-  return "border-slate-200 bg-white text-slate-700";
-}
-
-function eventMatchesFilter(event: WorldEvent, filter: EventFilter) {
-  if (filter === "all") return true;
-  if (filter === "social") return event.event_type === "talk";
-  if (filter === "movement") return event.event_type === "move";
-  return event.event_type === "work" || event.event_type === "rest";
-}
-
-function locationBeat(locationId: string, events: WorldSnapshot["recent_events"]) {
-  const latest = events.find((event) => event.location_id === locationId);
-  if (!latest) return "quiet";
-  if (latest.event_type === "talk") return "conversation";
-  if (latest.event_type === "move") return "arrival";
-  if (latest.event_type === "work") return "working";
-  if (latest.event_type === "rest") return "resting";
-  return "quiet";
-}
-
-function beatBadge(beat: string) {
-  const map: Record<string, { cls: string; label: string }> = {
-    conversation: { cls: "bg-rose-100 text-rose-900", label: "对话中" },
-    arrival: { cls: "bg-emerald-100 text-emerald-900", label: "有人抵达" },
-    working: { cls: "bg-amber-100 text-amber-900", label: "工作中" },
-    resting: { cls: "bg-slate-100 text-slate-800", label: "休息中" },
-    quiet: { cls: "bg-white/80 text-slate-500", label: "安静" },
-  };
-  return map[beat] ?? { cls: "bg-mist text-slate-700", label: beat };
-}
-
-function formatGoal(goal?: string) {
-  if (!goal) {
-    return "暂无公开目标";
-  }
-  return goal.length > 28 ? `${goal.slice(0, 28)}...` : goal;
-}
-
-function formatSimTime(world: WorldSnapshot) {
-  const tickMinutes = world.run.tick_minutes ?? 5;
-  const totalMinutes = (world.run.current_tick ?? 0) * tickMinutes;
-  const hours = Math.floor(totalMinutes / 60)
-    .toString()
-    .padStart(2, "0");
-  const minutes = (totalMinutes % 60).toString().padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
 
 type Props = {
   runId: string;
@@ -103,37 +57,26 @@ export function WorldCanvas({ runId }: Props) {
 
   const { agentNameMap, locationNameMap, visibleEvents, activeConversations, activeLocations } =
     useMemo(() => {
-      const namesByAgent: Record<string, string> = {};
-      const namesByLocation: Record<string, string> = {};
-
       if (!world) {
         return {
-          agentNameMap: namesByAgent,
-          locationNameMap: namesByLocation,
+          agentNameMap: {} as Record<string, string>,
+          locationNameMap: {} as Record<string, string>,
           visibleEvents: [] as WorldEvent[],
           activeConversations: 0,
           activeLocations: 0,
         };
       }
 
-      for (const location of world.locations) {
-        namesByLocation[location.id] = location.name;
-        for (const agent of location.occupants) {
-          namesByAgent[agent.id] = agent.name;
-        }
-      }
-
-      const filtered = world.recent_events
-        .filter((event) => eventMatchesFilter(event, eventFilter))
-        .filter((event) => locationFilter === null || event.location_id === locationFilter);
+      const { agentNameMap, locationNameMap } = buildWorldNameMaps(world);
+      const filtered = filterWorldEvents(world.recent_events, eventFilter, locationFilter);
       const conversationCount = world.recent_events.filter((event) => event.event_type === "talk").length;
       const activeLocationCount = world.locations.filter((location) =>
         world.recent_events.some((event) => event.location_id === location.id),
       ).length;
 
       return {
-        agentNameMap: namesByAgent,
-        locationNameMap: namesByLocation,
+        agentNameMap,
+        locationNameMap,
         visibleEvents: filtered,
         activeConversations: conversationCount,
         activeLocations: activeLocationCount,
@@ -306,7 +249,6 @@ export function WorldCanvas({ runId }: Props) {
                 </svg>
               </button>
             </div>
-            {/* 事件类型筛选器 */}
             <div className="mb-2 flex flex-wrap gap-1">
               {EVENT_FILTERS.map((filter) => {
                 const active = filter.id === eventFilter;
@@ -326,7 +268,6 @@ export function WorldCanvas({ runId }: Props) {
                 );
               })}
             </div>
-            {/* 地点筛选器 */}
             <div className="mb-3 flex flex-wrap gap-1">
               <button
                 type="button"
@@ -383,7 +324,6 @@ export function WorldCanvas({ runId }: Props) {
             </div>
           </div>
 
-          {/* 情报流放大模态框 */}
           {world && (
             <IntelligenceStreamModal
               isOpen={isStreamExpanded}
@@ -393,7 +333,6 @@ export function WorldCanvas({ runId }: Props) {
             />
           )}
 
-          {/* 地点详情放大模态框 */}
           {world && selectedLocation && (
             <LocationDetailModal
               isOpen={isLocationExpanded}

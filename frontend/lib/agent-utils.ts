@@ -1,7 +1,5 @@
-// Agent 状态类型
 export type AgentStatus = "idle" | "working" | "talking" | "moving" | "resting";
 
-// 根据事件推断 Agent 状态（可在服务端和客户端使用）
 export function inferAgentStatus(
   agentId: string,
   recentEvents: Array<{ actor_agent_id?: string; target_agent_id?: string; event_type: string }>
@@ -25,4 +23,10 @@ export function inferAgentStatus(
     default:
       return "idle";
   }
+}
+
+export function relationshipTone(value: number) {
+  if (value >= 0.75) return "bg-emerald-500";
+  if (value >= 0.45) return "bg-amber-400";
+  return "bg-slate-300";
 }

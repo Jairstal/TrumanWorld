@@ -3,10 +3,11 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import type { WorldSnapshot } from "@/lib/api";
+import type { WorldSnapshot } from "@/lib/types";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { inferAgentStatus } from "@/lib/agent-utils";
 import { EventCard } from "@/components/event-card";
+import { beatBadge, buildWorldNameMaps, locationBeat, locationTone } from "@/lib/world-utils";
 
 type LocationDetailModalProps = {
   isOpen: boolean;
@@ -17,36 +18,6 @@ type LocationDetailModalProps = {
   runId: string;
 };
 
-function locationTone(locationType: string) {
-  if (locationType === "cafe") return "border-amber-200 bg-amber-50 text-amber-900";
-  if (locationType === "plaza") return "border-sky-200 bg-sky-50 text-sky-900";
-  if (locationType === "park") return "border-emerald-200 bg-emerald-50 text-emerald-900";
-  if (locationType === "shop") return "border-violet-200 bg-violet-50 text-violet-900";
-  if (locationType === "home") return "border-pink-200 bg-pink-50 text-pink-900";
-  return "border-slate-200 bg-white text-slate-700";
-}
-
-function locationBeat(locationId: string, events: WorldSnapshot["recent_events"]) {
-  const latest = events.find((event) => event.location_id === locationId);
-  if (!latest) return "quiet";
-  if (latest.event_type === "talk") return "conversation";
-  if (latest.event_type === "move") return "arrival";
-  if (latest.event_type === "work") return "working";
-  if (latest.event_type === "rest") return "resting";
-  return "quiet";
-}
-
-function beatBadge(beat: string) {
-  const map: Record<string, { cls: string; label: string }> = {
-    conversation: { cls: "bg-rose-100 text-rose-900", label: "对话中" },
-    arrival: { cls: "bg-emerald-100 text-emerald-900", label: "有人抵达" },
-    working: { cls: "bg-amber-100 text-amber-900", label: "工作中" },
-    resting: { cls: "bg-slate-100 text-slate-800", label: "休息中" },
-    quiet: { cls: "bg-white/80 text-slate-500", label: "安静" },
-  };
-  return map[beat] ?? { cls: "bg-slate-100 text-slate-700", label: beat };
-}
-
 export function LocationDetailModal({
   isOpen,
   onClose,
@@ -56,21 +27,12 @@ export function LocationDetailModal({
   runId,
 }: LocationDetailModalProps) {
   const { agentNameMap, locationNameMap, locationEvents } = useMemo(() => {
-    const namesByAgent: Record<string, string> = {};
-    const namesByLocation: Record<string, string> = {};
-
-    for (const location of world.locations) {
-      namesByLocation[location.id] = location.name;
-      for (const agent of location.occupants) {
-        namesByAgent[agent.id] = agent.name;
-      }
-    }
-
+    const { agentNameMap, locationNameMap } = buildWorldNameMaps(world);
     const events = world.recent_events.filter((event) => event.location_id === locationId);
 
     return {
-      agentNameMap: namesByAgent,
-      locationNameMap: namesByLocation,
+      agentNameMap,
+      locationNameMap,
       locationEvents: events,
     };
   }, [world, locationId]);
@@ -89,7 +51,6 @@ export function LocationDetailModal({
         exit={{ opacity: 0, scale: 0.95 }}
         className="flex h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl"
       >
-        {/* 头部 */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-4">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-slate-400">聚焦地点</p>
@@ -97,7 +58,6 @@ export function LocationDetailModal({
             <p className="text-sm text-slate-500">{location.location_type}</p>
           </div>
           <div className="flex items-center gap-3">
-            {/* 地点切换 */}
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -131,7 +91,6 @@ export function LocationDetailModal({
                 </svg>
               </button>
             </div>
-            {/* 关闭按钮 */}
             <button
               type="button"
               onClick={onClose}
@@ -144,7 +103,6 @@ export function LocationDetailModal({
           </div>
         </div>
 
-        {/* 统计信息 */}
         <div className="grid grid-cols-3 gap-4 border-b border-slate-100 bg-slate-50/50 px-6 py-3">
           <div className="text-center">
             <p className="text-2xl font-semibold text-ink">{location.occupants.length}</p>
@@ -160,9 +118,7 @@ export function LocationDetailModal({
           </div>
         </div>
 
-        {/* 内容区域 */}
         <div className="flex-1 overflow-y-auto">
-          {/* 当前居民 */}
           <div className="border-b border-slate-100 p-6">
             <div className="mb-3 flex items-center gap-2">
               <h3 className="text-sm font-medium text-ink">当前居民</h3>
@@ -207,7 +163,6 @@ export function LocationDetailModal({
             )}
           </div>
 
-          {/* 地点事件 */}
           <div className="p-6">
             <h3 className="mb-3 text-sm font-medium text-ink">地点事件</h3>
             {locationEvents.length === 0 ? (

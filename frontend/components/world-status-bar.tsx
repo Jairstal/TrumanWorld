@@ -3,18 +3,7 @@
 import { useState } from "react";
 import { useWorld } from "@/components/world-context";
 import { startRun, pauseRun } from "@/lib/api";
-
-function formatSimTime(world: WorldSnapshot) {
-  const tickMinutes = world.run.tick_minutes ?? 5;
-  const totalMinutes = (world.run.current_tick ?? 0) * tickMinutes;
-  const hours = Math.floor(totalMinutes / 60)
-    .toString()
-    .padStart(2, "0");
-  const minutes = (totalMinutes % 60).toString().padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
-type WorldSnapshot = import("@/lib/api").WorldSnapshot;
+import { formatSimTime } from "@/lib/world-utils";
 
 export function WorldStatusBar() {
   const { runId, world, error, isValidating, refresh } = useWorld();
@@ -50,7 +39,6 @@ export function WorldStatusBar() {
 
   return (
     <div className="flex items-center gap-3">
-      {/* 启动/暂停按钮 */}
       <button
         type="button"
         onClick={handleToggleRun}
@@ -79,7 +67,6 @@ export function WorldStatusBar() {
         {isRunning ? "暂停" : "启动"}
       </button>
 
-      {/* Tick 状态 */}
       <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1.5 text-sm text-white">
         <span
           className={`h-2 w-2 rounded-full ${isValidating ? "animate-pulse bg-emerald-300" : isRunning ? "bg-emerald-400" : "bg-slate-300"}`}
@@ -87,14 +74,12 @@ export function WorldStatusBar() {
         Tick {world.run.current_tick ?? 0}
       </span>
 
-      {/* 模拟时间 */}
       <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600">
         {world.world_clock
           ? `${world.world_clock.date} ${world.world_clock.weekday_name_cn} ${world.world_clock.time_period_cn} ${world.world_clock.time}`
           : `模拟时间 ${formatSimTime(world)}`}
       </span>
 
-      {/* 刷新按钮 */}
       <button
         type="button"
         onClick={refresh}
@@ -103,7 +88,6 @@ export function WorldStatusBar() {
         刷新
       </button>
 
-      {/* 错误提示 */}
       {error ? (
         <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-700">
           刷新失败
