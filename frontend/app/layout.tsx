@@ -6,6 +6,9 @@ import { AppShell } from "@/components/app-shell";
 export const metadata: Metadata = {
   title: "AI Truman World",
   description: "Director console for the TrumanWorld MVP",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

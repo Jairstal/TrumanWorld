@@ -83,16 +83,16 @@ INITIAL_RELATIONSHIPS = {
         "relation_type": "acquaintance",
     },
     ("friend", "alice"): {
-        "familiarity": 0.55,
-        "trust": 0.4,
-        "affinity": 0.45,
-        "relation_type": "acquaintance",
+        "familiarity": 0.65,
+        "trust": 0.55,
+        "affinity": 0.6,
+        "relation_type": "housemate",
     },
     ("friend", "neighbor"): {
-        "familiarity": 0.15,
-        "trust": 0.1,
-        "affinity": 0.1,
-        "relation_type": "stranger",
+        "familiarity": 0.6,
+        "trust": 0.5,
+        "affinity": 0.55,
+        "relation_type": "housemate",
     },
     # Alice 的关系
     ("alice", "truman"): {
@@ -102,16 +102,16 @@ INITIAL_RELATIONSHIPS = {
         "relation_type": "acquaintance",
     },
     ("alice", "friend"): {
-        "familiarity": 0.55,
-        "trust": 0.4,
-        "affinity": 0.45,
-        "relation_type": "acquaintance",
+        "familiarity": 0.65,
+        "trust": 0.55,
+        "affinity": 0.6,
+        "relation_type": "housemate",
     },
     ("alice", "neighbor"): {
-        "familiarity": 0.6,
-        "trust": 0.45,
-        "affinity": 0.5,
-        "relation_type": "acquaintance",
+        "familiarity": 0.7,
+        "trust": 0.6,
+        "affinity": 0.65,
+        "relation_type": "housemate",
     },
     ("alice", "spouse"): {
         "familiarity": 0.2,
@@ -121,10 +121,10 @@ INITIAL_RELATIONSHIPS = {
     },
     # Lauren 的关系
     ("neighbor", "alice"): {
-        "familiarity": 0.6,
-        "trust": 0.45,
-        "affinity": 0.5,
-        "relation_type": "acquaintance",
+        "familiarity": 0.7,
+        "trust": 0.6,
+        "affinity": 0.65,
+        "relation_type": "housemate",
     },
     ("neighbor", "truman"): {
         "familiarity": 0.2,
@@ -133,10 +133,10 @@ INITIAL_RELATIONSHIPS = {
         "relation_type": "stranger",
     },
     ("neighbor", "friend"): {
-        "familiarity": 0.15,
-        "trust": 0.1,
-        "affinity": 0.1,
-        "relation_type": "stranger",
+        "familiarity": 0.6,
+        "trust": 0.5,
+        "affinity": 0.55,
+        "relation_type": "housemate",
     },
     ("neighbor", "spouse"): {
         "familiarity": 0.1,
@@ -206,6 +206,16 @@ class TrumanWorldSeedBuilder:
             y=2,
             attributes={"kind": "work"},
         )
+        bachelor_apt = Location(
+            id=f"{run_id}-bachelor-apt",
+            run_id=run_id,
+            name="镇中公寓",
+            location_type="home",
+            capacity=6,
+            x=0,
+            y=2,
+            attributes={"kind": "private"},
+        )
 
         truman = Agent(
             id=f"{run_id}-truman",
@@ -252,7 +262,7 @@ class TrumanWorldSeedBuilder:
             run_id=run_id,
             name="Marlon",
             occupation="办公室同事",
-            home_location_id=f"{run_id}-plaza",
+            home_location_id=f"{run_id}-bachelor-apt",
             current_location_id=f"{run_id}-office",
             current_goal="work",
             personality={"agreeableness": 0.68, "openness": 0.48},
@@ -272,7 +282,7 @@ class TrumanWorldSeedBuilder:
             run_id=run_id,
             name="Lauren",
             occupation="常客",
-            home_location_id=f"{run_id}-plaza",
+            home_location_id=f"{run_id}-bachelor-apt",
             current_location_id=f"{run_id}-cafe",
             current_goal="talk",
             personality={"agreeableness": 0.58, "openness": 0.66},
@@ -290,7 +300,7 @@ class TrumanWorldSeedBuilder:
             run_id=run_id,
             name="Alice",
             occupation="咖啡师",
-            home_location_id=f"{run_id}-cafe",
+            home_location_id=f"{run_id}-bachelor-apt",
             current_location_id=f"{run_id}-cafe",
             current_goal="work",
             personality={"openness": 0.7, "conscientiousness": 0.8},
@@ -334,7 +344,7 @@ class TrumanWorldSeedBuilder:
             metadata["world_start_time"] = DEFAULT_WORLD_START_TIME.isoformat()
             run.metadata_json = metadata
 
-        self.session.add_all([plaza, apartment, office, cafe, hospital])
+        self.session.add_all([plaza, apartment, office, cafe, hospital, bachelor_apt])
         await self.session.flush()
         self.session.add_all([truman, spouse, friend, neighbor, alice])
         await self.session.flush()
