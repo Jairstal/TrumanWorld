@@ -3,6 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useState } from "react";
+import useSWR from "swr";
+import type { RunSummary } from "@/lib/api";
+
+const API_BASE =
+  (typeof window !== "undefined" ? process.env.NEXT_PUBLIC_API_BASE_URL : undefined) ??
+  "http://127.0.0.1:8000/api";
+
+async function runsFetcher(url: string): Promise<RunSummary[]> {
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) return [];
+  return response.json() as Promise<RunSummary[]>;
+}
 
 type AppShellProps = {
   children: ReactNode;
@@ -23,6 +35,9 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: AppShellProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { data: runs } = useSWR<RunSummary[]>(`${API_BASE}/runs`, runsFetcher, {
+    refreshInterval: 10000,
+  });
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
@@ -33,55 +48,41 @@ export function AppShell({ children }: AppShellProps) {
         }`}
       >
         {/* Logo 区域 */}
-        <div className="border-b border-white/60 px-4 py-4">
+        <div className="flex items-center justify-between border-b border-white/60 px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#172033,#34425f)] text-white shadow-md shadow-slate-900/10">
-              <span className="text-sm font-bold tracking-[0.08em]">TW</span>
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#172033,#34425f)] text-white shadow-md shadow-slate-900/10">
+              <span className="text-xs font-bold tracking-[0.08em]">TW</span>
             </div>
             {!isCollapsed && (
               <div className="overflow-hidden">
-                <h1 className="text-base font-semibold text-ink">Truman World</h1>
-                <p className="text-[11px] text-slate-400">导演控制台</p>
+                <h1 className="text-sm font-semibold text-ink">Truman World</h1>
+                <p className="text-[10px] text-slate-400">导演控制台</p>
               </div>
             )}
           </div>
 
-          {!isCollapsed && (
-            <div className="mt-4 rounded-[24px] border border-slate-200 bg-white/70 p-4 shadow-sm">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-moss">Studio</p>
-              <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-                管理模拟世界、观察居民行为，并在关键节点进行导演干预。
-              </p>
-            </div>
-          )}
+          {/* 折叠按钮 */}
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            title={isCollapsed ? "展开" : "收起"}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? "rotate-180" : ""}`}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
         </div>
 
-        {/* 折叠按钮 */}
-        <button
-          type="button"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="mx-3 mt-3 flex items-center justify-center rounded-xl border border-slate-200 bg-white/70 py-2 text-slate-500 transition hover:bg-white hover:text-ink"
-          title={isCollapsed ? "展开侧边栏" : "收起侧边栏"}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? "rotate-180" : ""}`}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          {!isCollapsed && <span className="ml-2 text-xs">收起</span>}
-        </button>
-
-        <div className="flex-1 overflow-y-auto py-4">
-          <div className="px-2">
-            {!isCollapsed && (
-              <p className="mb-2 px-3 text-[10px] font-medium uppercase tracking-[0.24em] text-slate-400">
-                主要
-              </p>
-            )}
+        <div className="flex-1 overflow-y-auto py-3">
+          {/* 主要导航 */}
+          <div className="px-3">
             {NAV_ITEMS.map((item) => (
               <SidebarNavItemWide
                 key={item.href}
@@ -93,14 +94,27 @@ export function AppShell({ children }: AppShellProps) {
               />
             ))}
           </div>
+
+          {/* Runs 列表 */}
+          {!isCollapsed && runs && runs.length > 0 && (
+            <div className="mt-4 px-3">
+              <p className="mb-2 px-2 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
+                世界列表
+              </p>
+              <div className="space-y-0.5">
+                {runs.map((run) => (
+                  <RunListItem key={run.id} run={run} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-white/60 p-3">
           {!isCollapsed ? (
-            <div className="rounded-[24px] border border-slate-200 bg-white/70 p-4 shadow-sm">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-slate-400">版本</p>
-              <p className="mt-1 text-sm font-medium text-slate-700">v0.1.0 MVP</p>
-              <p className="mt-2 text-xs leading-5 text-slate-500">当前重点是 run 总览、世界视图和导播操作链路。</p>
+            <div className="flex items-center justify-between rounded-xl bg-white/50 px-3 py-2">
+              <span className="text-[10px] text-slate-400">v0.1.0</span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-500">MVP</span>
             </div>
           ) : (
             <div className="flex justify-center">
@@ -138,16 +152,52 @@ function SidebarNavItemWide({
       title={label}
       className={`flex items-center transition-all ${
         isCollapsed
-          ? "justify-center rounded-xl px-2 py-2"
-          : "gap-3 rounded-2xl px-3 py-3"
+          ? "justify-center rounded-lg px-2 py-2"
+          : "gap-2.5 rounded-xl px-2.5 py-2"
       } ${
         isActive
-          ? "bg-[linear-gradient(135deg,rgba(111,139,107,0.14),rgba(111,139,107,0.06))] text-moss shadow-sm"
-          : "text-slate-600 hover:bg-white/70 hover:text-ink"
+          ? "bg-white text-moss shadow-sm"
+          : "text-slate-600 hover:bg-white/60 hover:text-ink"
       }`}
     >
-      <span className={isActive ? "text-moss" : "text-slate-400"}>{icon}</span>
-      {!isCollapsed && <span className={isActive ? "font-medium" : ""}>{label}</span>}
+      <span className={`${isActive ? "text-moss" : "text-slate-400"} ${isCollapsed ? "" : "h-5 w-5"}`}>
+        {icon}
+      </span>
+      {!isCollapsed && <span className={`text-sm ${isActive ? "font-medium" : ""}`}>{label}</span>}
+    </Link>
+  );
+}
+
+// Run 列表项组件
+function RunListItem({ run }: { run: RunSummary }) {
+  const pathname = usePathname();
+  const isActive = pathname.startsWith(`/runs/${run.id}`);
+
+  return (
+    <Link
+      href={`/runs/${run.id}/world`}
+      className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 transition ${
+        isActive
+          ? "bg-white text-moss shadow-sm"
+          : "text-slate-600 hover:bg-white/60 hover:text-ink"
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          run.status === "running" ? "bg-emerald-500" : "bg-amber-500"
+        }`}
+      />
+      <div className="min-w-0 flex-1">
+        <p className={`truncate text-sm ${isActive ? "font-medium" : ""}`}>{run.name}</p>
+        <p className="text-[11px] text-slate-400">
+          Tick {run.current_tick ?? 0}
+        </p>
+      </div>
+      {isActive && (
+        <svg className="h-3.5 w-3.5 text-moss/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M9 5l7 7-7 7" />
+        </svg>
+      )}
     </Link>
   );
 }

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.db import get_db_session
 from app.infra.logging import get_logger
+from app.sim.context import get_run_world_time
 from app.sim.scheduler import get_scheduler
 from app.sim.service import SimulationService
 from app.store.models import SimulationRun
@@ -556,6 +557,56 @@ async def get_world_snapshot(
             }
         )
 
+    # Calculate world time context
+    world_time = get_run_world_time(run)
+    weekday = world_time.weekday()
+    weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    weekday_names_cn = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+    
+    hour = world_time.hour
+    if hour < 6:
+        time_period = "night"
+        time_period_cn = "深夜"
+    elif hour < 9:
+        time_period = "morning"
+        time_period_cn = "早晨"
+    elif hour < 12:
+        time_period = "late_morning"
+        time_period_cn = "上午"
+    elif hour < 14:
+        time_period = "noon"
+        time_period_cn = "中午"
+    elif hour < 18:
+        time_period = "afternoon"
+        time_period_cn = "下午"
+    elif hour < 22:
+        time_period = "evening"
+        time_period_cn = "傍晚"
+    else:
+        time_period = "night"
+        time_period_cn = "夜晚"
+
+    world_clock = {
+        "iso": world_time.isoformat(),
+        "date": world_time.strftime("%Y-%m-%d"),
+        "time": world_time.strftime("%H:%M"),
+        "year": world_time.year,
+        "month": world_time.month,
+        "day": world_time.day,
+        "hour": hour,
+        "minute": world_time.minute,
+        "weekday": weekday,
+        "weekday_name": weekday_names[weekday],
+        "weekday_name_cn": weekday_names_cn[weekday],
+        "is_weekend": weekday >= 5,
+        "time_period": time_period,
+        "time_period_cn": time_period_cn,
+    }
+
+    # Build agent and location name maps for event enrichment
+    agent_name_map = {agent.id: agent.name for agent in agents}
+    location_name_map = {location.id: location.name for location in locations}
+
     return {
         "run": {
             "id": run.id,
@@ -564,6 +615,7 @@ async def get_world_snapshot(
             "current_tick": run.current_tick,
             "tick_minutes": run.tick_minutes,
         },
+        "world_clock": world_clock,
         "locations": locations_payload,
         "recent_events": [
             {
@@ -573,6 +625,9 @@ async def get_world_snapshot(
                 "location_id": event.location_id,
                 "actor_agent_id": event.actor_agent_id,
                 "target_agent_id": event.target_agent_id,
+                "actor_name": agent_name_map.get(event.actor_agent_id) if event.actor_agent_id else None,
+                "target_name": agent_name_map.get(event.target_agent_id) if event.target_agent_id else None,
+                "location_name": location_name_map.get(event.location_id) if event.location_id else None,
                 "payload": event.payload,
             }
             for event in events

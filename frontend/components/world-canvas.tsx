@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import useSWR from "swr";
 import type { WorldSnapshot } from "@/lib/api";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { inferAgentStatus } from "@/lib/agent-utils";
 import { EventCard } from "@/components/event-card";
 import { TownMap } from "@/components/town-map";
 import { IntelligenceStreamModal } from "@/components/intelligence-stream-modal";
+import { LocationDetailModal } from "@/components/location-detail-modal";
+import { useWorld } from "@/components/world-context";
 
 type WorldEvent = WorldSnapshot["recent_events"][number];
 type EventFilter = "all" | "social" | "activity" | "movement";
@@ -21,18 +22,6 @@ const EVENT_FILTERS: Array<{ id: EventFilter; label: string }> = [
   { id: "activity", label: "动作" },
   { id: "movement", label: "移动" },
 ];
-
-const API_BASE =
-  (typeof window !== "undefined" ? process.env.NEXT_PUBLIC_API_BASE_URL : undefined) ??
-  "http://127.0.0.1:8000/api";
-
-async function worldFetcher(url: string): Promise<WorldSnapshot | null> {
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) {
-    throw new Error(`Failed to load world snapshot: ${response.status}`);
-  }
-  return response.json() as Promise<WorldSnapshot>;
-}
 
 function locationTone(locationType: string) {
   if (locationType === "cafe") return "border-amber-200 bg-amber-50 text-amber-900";
@@ -90,25 +79,16 @@ function formatSimTime(world: WorldSnapshot) {
 
 type Props = {
   runId: string;
-  initialData?: WorldSnapshot | null;
 };
 
-export function WorldCanvas({ runId, initialData }: Props) {
+export function WorldCanvas({ runId }: Props) {
   const router = useRouter();
+  const { world } = useWorld();
   const [highlightedLocationId, setHighlightedLocationId] = useState<string | null>(null);
   const [eventFilter, setEventFilter] = useState<EventFilter>("all");
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
   const [isStreamExpanded, setIsStreamExpanded] = useState(false);
-
-  const { data: world, error, isValidating, mutate } = useSWR<WorldSnapshot | null>(
-    `${API_BASE}/runs/${runId}/world`,
-    worldFetcher,
-    {
-      fallbackData: initialData ?? null,
-      refreshInterval: (snapshot) => (snapshot?.run.status === "running" ? 5000 : 0),
-      revalidateOnFocus: true,
-    },
-  );
+  const [isLocationExpanded, setIsLocationExpanded] = useState(false);
 
   const latestTick = world?.recent_events[0]?.tick_no ?? world?.run.current_tick ?? 0;
 
@@ -176,38 +156,7 @@ export function WorldCanvas({ runId, initialData }: Props) {
   const latestEvent = world.recent_events[0] ?? null;
 
   return (
-    <div className="flex h-full min-h-[calc(100vh-11rem)] flex-col gap-4 px-6 py-5">
-      <div className="rounded-[28px] border border-white/70 bg-white/75 p-4 shadow-sm backdrop-blur">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm text-white">
-              <span
-                className={`h-2 w-2 rounded-full ${isValidating ? "animate-pulse bg-emerald-300" : isRunning ? "bg-emerald-400" : "bg-slate-300"}`}
-              />
-              Tick {world.run.current_tick ?? 0} · {isRunning ? "运行中" : "已暂停"}
-            </span>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-              模拟时间 {formatSimTime(world)}
-            </span>
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-              {isRunning ? "每 5 秒自动更新" : "暂停时停止轮询"}
-            </span>
-            {error ? (
-              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                最近一次刷新失败，当前仍展示上一份快照
-              </span>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={() => void mutate()}
-            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 transition hover:border-moss hover:text-moss"
-          >
-            立即刷新
-          </button>
-        </div>
-      </div>
-
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-4">
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.75fr)_380px]">
         <div className="min-h-0 flex-1">
           <TownMap
@@ -270,11 +219,23 @@ export function WorldCanvas({ runId, initialData }: Props) {
                   {selectedLocation?.location_type ?? "-"}
                 </p>
               </div>
-              {selectedLocationBeat ? (
-                <span className={`rounded-full px-3 py-1 text-xs font-medium ${selectedLocationBeat.cls}`}>
-                  {selectedLocationBeat.label}
-                </span>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {selectedLocationBeat ? (
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${selectedLocationBeat.cls}`}>
+                    {selectedLocationBeat.label}
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setIsLocationExpanded(true)}
+                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-moss hover:text-moss"
+                  title="放大查看地点详情"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {selectedLocation ? (
@@ -428,6 +389,18 @@ export function WorldCanvas({ runId, initialData }: Props) {
               isOpen={isStreamExpanded}
               onClose={() => setIsStreamExpanded(false)}
               world={world}
+              runId={runId}
+            />
+          )}
+
+          {/* 地点详情放大模态框 */}
+          {world && selectedLocation && (
+            <LocationDetailModal
+              isOpen={isLocationExpanded}
+              onClose={() => setIsLocationExpanded(false)}
+              world={world}
+              locationId={selectedLocation.id}
+              onLocationChange={(locId) => setHighlightedLocationId(locId)}
               runId={runId}
             />
           )}

@@ -8,6 +8,7 @@ import { EventCard } from "@/components/event-card";
 
 type WorldEvent = WorldSnapshot["recent_events"][number];
 type EventFilter = "all" | "social" | "activity" | "movement";
+type LocationFilter = string | null;
 
 const EVENT_FILTERS: Array<{ id: EventFilter; label: string }> = [
   { id: "all", label: "全部事件" },
@@ -30,6 +31,7 @@ export function IntelligenceStreamModal({
   runId,
 }: IntelligenceStreamModalProps) {
   const [eventFilter, setEventFilter] = useState<EventFilter>("all");
+  const [locationFilter, setLocationFilter] = useState<LocationFilter>(null);
 
   const { agentNameMap, locationNameMap, visibleEvents, latestTick } = useMemo(() => {
     const namesByAgent: Record<string, string> = {};
@@ -42,12 +44,17 @@ export function IntelligenceStreamModal({
       }
     }
 
-    const filtered = world.recent_events.filter((event) => {
+    let filtered = world.recent_events.filter((event) => {
       if (eventFilter === "all") return true;
       if (eventFilter === "social") return event.event_type === "talk";
       if (eventFilter === "movement") return event.event_type === "move";
       return event.event_type === "work" || event.event_type === "rest";
     });
+
+    // Apply location filter
+    if (locationFilter) {
+      filtered = filtered.filter((event) => event.location_id === locationFilter);
+    }
 
     const tick = world.recent_events[0]?.tick_no ?? world.run.current_tick ?? 0;
 
@@ -57,7 +64,7 @@ export function IntelligenceStreamModal({
       visibleEvents: filtered,
       latestTick: tick,
     };
-  }, [eventFilter, world]);
+  }, [eventFilter, locationFilter, world]);
 
   if (!isOpen) return null;
 
@@ -70,13 +77,26 @@ export function IntelligenceStreamModal({
         className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl"
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-4">
-          <div>
-            <h2 className="text-xl font-semibold text-ink">世界情报流</h2>
-            <p className="text-sm text-slate-500">实时事件监控中心</p>
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-ink">世界情报流</h2>
+              <p className="text-sm text-slate-500">实时事件监控中心</p>
+            </div>
+            {/* 关闭按钮 */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div className="flex items-center gap-3">
-            {/* 筛选器 */}
+          {/* 筛选器 */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {/* 事件类型筛选 */}
             <div className="flex gap-1">
               {EVENT_FILTERS.map((filter) => {
                 const active = filter.id === eventFilter;
@@ -96,16 +116,35 @@ export function IntelligenceStreamModal({
                 );
               })}
             </div>
-            {/* 关闭按钮 */}
-            <button
-              type="button"
-              onClick={onClose}
-              className="ml-2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="h-4 w-px bg-slate-200" />
+            {/* 地点筛选 */}
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => setLocationFilter(null)}
+                className={`rounded-full px-3 py-1.5 text-xs transition ${
+                  locationFilter === null
+                    ? "bg-moss text-white"
+                    : "border border-slate-200 bg-white text-slate-500 hover:border-moss hover:text-moss"
+                }`}
+              >
+                全部地点
+              </button>
+              {world.locations.map((loc) => (
+                <button
+                  key={loc.id}
+                  type="button"
+                  onClick={() => setLocationFilter(loc.id === locationFilter ? null : loc.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs transition ${
+                    locationFilter === loc.id
+                      ? "border border-moss/40 bg-moss/20 text-moss"
+                      : "border border-slate-200 bg-white text-slate-500 hover:border-moss hover:text-moss"
+                  }`}
+                >
+                  {loc.name}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

@@ -14,15 +14,15 @@ export function DirectorEventForm({ runId }: DirectorEventFormProps) {
   const [statusMessage, setStatusMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const presets = [
-    "广场集合通知",
-    "咖啡馆临时停电",
-    "今日市集开始营业",
-    "晚上在广场播放电影",
+    "广场集合",
+    "停电通知",
+    "市集营业",
+    "电影放映",
   ];
 
   return (
     <form
-      className="space-y-5"
+      className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
         startTransition(async () => {
@@ -31,31 +31,24 @@ export function DirectorEventForm({ runId }: DirectorEventFormProps) {
             payload: { message },
             importance: 0.8,
           });
-          setStatusMessage(result ? "事件已注入，请刷新 timeline 查看。" : "注入失败，可能是后端未启动。");
+          setStatusMessage(result ? "已注入" : "失败");
+          setTimeout(() => setStatusMessage(""), 3000);
         });
       }}
     >
-      <div className="rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-moss">导演干预</p>
-            <h2 className="mt-2 text-lg font-semibold text-ink">注入一条会被居民感知的世界事件</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              适合制造剧情节点、广播消息或测试角色对公共事件的反应。
-            </p>
-          </div>
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            当前默认广播到全体居民
-          </div>
+      {/* 标题 + 预设 */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-ink">导演干预</span>
+          <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-600">广播全体</span>
         </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {presets.map((preset) => (
             <button
               key={preset}
               type="button"
               onClick={() => setMessage(preset)}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:border-moss hover:text-moss"
+              className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-500 transition hover:border-moss hover:text-moss"
             >
               {preset}
             </button>
@@ -63,38 +56,36 @@ export function DirectorEventForm({ runId }: DirectorEventFormProps) {
         </div>
       </div>
 
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-ink">事件类型</span>
-        <input
-          value={eventType}
-          onChange={(event) => setEventType(event.target.value)}
-          className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-moss"
-        />
-        <p className="text-xs text-slate-500">当前接口仍使用事件类型字符串，后续可以继续收敛成下拉选项。</p>
-      </label>
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-ink">事件内容</span>
-        <textarea
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          className="min-h-32 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-moss"
-        />
-      </label>
-      <div className="flex flex-wrap items-center gap-3">
+      {/* 表单字段 */}
+      <div className="space-y-2">
+        <label className="block">
+          <span className="text-sm text-slate-500">事件内容</span>
+          <textarea
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            rows={2}
+            className="mt-1.5 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base outline-none transition focus:border-moss"
+            placeholder="输入要广播给居民的消息..."
+          />
+        </label>
+        <input type="hidden" value={eventType} />
+      </div>
+
+      {/* 提交 + 状态 */}
+      <div className="flex items-center gap-3">
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex rounded-full bg-ember px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-full bg-ember px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
-          {isPending ? "正在注入..." : "注入事件"}
+          {isPending ? "注入中..." : "注入事件"}
         </button>
-        <p className="text-xs text-slate-500">建议搭配时间线和世界视图一起观察结果。</p>
+        {statusMessage && (
+          <span className={`text-sm ${statusMessage === "已注入" ? "text-emerald-600" : "text-red-500"}`}>
+            {statusMessage}
+          </span>
+        )}
       </div>
-      {statusMessage ? (
-        <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          {statusMessage}
-        </p>
-      ) : null}
     </form>
   );
 }

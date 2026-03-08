@@ -28,8 +28,26 @@ export type TimelineEvent = {
   payload: Record<string, unknown>;
 };
 
+export type WorldClock = {
+  iso: string;
+  date: string;
+  time: string;
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  weekday: number;
+  weekday_name: string;
+  weekday_name_cn: string;
+  is_weekend: boolean;
+  time_period: string;
+  time_period_cn: string;
+};
+
 export type WorldSnapshot = {
   run: RunSummary;
+  world_clock?: WorldClock;
   locations: Array<{
     id: string;
     name: string;
@@ -46,6 +64,9 @@ export type WorldSnapshot = {
     location_id?: string;
     actor_agent_id?: string;
     target_agent_id?: string;
+    actor_name?: string;
+    target_name?: string;
+    location_name?: string;
     payload: Record<string, unknown>;
   }>;
 };

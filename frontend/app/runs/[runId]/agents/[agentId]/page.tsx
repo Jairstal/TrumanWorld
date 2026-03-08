@@ -39,8 +39,11 @@ export default async function AgentPage({ params }: AgentPageProps) {
     return (
       <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_#f7f3e8,_#eef5f1_48%,_#f8fafc)]">
         <div className="border-b border-white/60 bg-white/65 px-8 py-5 backdrop-blur">
-          <Link href={`/runs/${runId}`} className="text-xs uppercase tracking-[0.25em] text-moss hover:text-ink">
-            ← 返回 run 总览
+          <Link href={`/runs/${runId}/world`} className="group flex items-center gap-1.5 text-sm text-slate-500 hover:text-moss">
+            <svg className="h-4 w-4 transition group-hover:-translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            <span>返回世界视图</span>
           </Link>
           <h1 className="mt-3 text-2xl font-semibold text-ink">未找到 Agent</h1>
         </div>
@@ -56,8 +59,11 @@ export default async function AgentPage({ params }: AgentPageProps) {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_#f7f3e8,_#eef5f1_48%,_#f8fafc)]">
       <div className="border-b border-white/60 bg-white/65 px-8 py-5 backdrop-blur">
-        <Link href={`/runs/${runId}`} className="text-xs uppercase tracking-[0.25em] text-moss hover:text-ink">
-          ← 返回 run 总览
+        <Link href={`/runs/${runId}/world`} className="group flex items-center gap-1.5 text-sm text-slate-500 hover:text-moss">
+          <svg className="h-4 w-4 transition group-hover:-translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          <span>返回世界视图</span>
         </Link>
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
           <div className="flex items-center gap-4">
