@@ -64,10 +64,12 @@ class SimulationScheduler:
         if scheduled and scheduled.task:
             info(f"Stopping scheduler for run {run_id}")
             scheduled.task.cancel()
-            # Await the task to properly handle cancellation and avoid "Task exception was never retrieved"
-            # The cancel scope errors from claude_agent_sdk are now handled in providers.py
+            # Await the task to properly handle cancellation
+            # Use timeout to avoid blocking forever if LLM call is stuck
             try:
-                await scheduled.task
+                await asyncio.wait_for(asyncio.shield(scheduled.task), timeout=2.0)
+            except asyncio.TimeoutError:
+                info(f"Task for run {run_id} did not cancel within 2s, continuing")
             except asyncio.CancelledError:
                 pass
             except RuntimeError as e:

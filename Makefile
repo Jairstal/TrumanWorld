@@ -172,6 +172,6 @@ dev: check-ports db-start db-migrate sync-agent-logos
 	@echo "按 Ctrl+C 停止前后端（数据库会继续运行）"
 	@echo ""
 	@(trap 'kill %1 %2 2>/dev/null' INT; \
-		cd $(BACKEND_DIR) && uv run uvicorn app.main:app --reload --host 127.0.0.1 --port $(BACKEND_PORT) & \
-		cd $(FRONTEND_DIR) && npm run dev -- --port $(FRONTEND_PORT) & \
+		(cd $(BACKEND_DIR) && uv run uvicorn app.main:app --host 127.0.0.1 --port $(BACKEND_PORT)) & \
+		(cd $(FRONTEND_DIR) && npm run dev -- --port $(FRONTEND_PORT)) & \
 		wait)

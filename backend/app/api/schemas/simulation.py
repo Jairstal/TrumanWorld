@@ -27,6 +27,8 @@ class TimelineEventResponse(BaseModel):
     event_type: EventType
     importance: float | None = None
     payload: dict = Field(default_factory=dict)
+    world_time: str | None = None  # 该 tick 对应的模拟世界时间，格式 HH:MM
+    world_date: str | None = None  # 该 tick 对应的模拟世界日期，格式 YYYY-MM-DD
 
 
 class WorldEventsResponse(BaseModel):
@@ -35,9 +37,19 @@ class WorldEventsResponse(BaseModel):
     total: int
 
 
+class TimelineRunInfo(BaseModel):
+    current_tick: int
+    tick_minutes: int
+    world_start_iso: str  # world_start_time ISO 字符串
+    current_world_time_iso: str  # 当前 tick 对应的世界时间 ISO
+
+
 class TimelineResponse(BaseModel):
     run_id: str
     events: list[TimelineEventResponse]
+    total: int = 0
+    filtered: int = 0
+    run_info: TimelineRunInfo | None = None
 
 
 class DirectorObservationResponse(BaseModel):

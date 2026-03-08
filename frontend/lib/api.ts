@@ -5,6 +5,8 @@ import type {
   RunSummary,
   TickResponse,
   TimelineEvent,
+  TimelineFilter,
+  TimelineResponse,
   WorldEvent,
   WorldSnapshot,
 } from "@/lib/types";
@@ -16,6 +18,9 @@ export type {
   RunSummary,
   TickResponse,
   TimelineEvent,
+  TimelineFilter,
+  TimelineResponse,
+  TimelineRunInfo,
   WorldClock,
   WorldEvent,
   WorldLocation,
@@ -198,12 +203,34 @@ export async function listRunsResult(): Promise<ApiResult<RunSummary[]>> {
   return fetchResult<RunSummary[]>("/runs");
 }
 
-export async function getTimeline(runId: string): Promise<{ run_id: string; events: TimelineEvent[] }> {
-  return safeFetch(`/runs/${runId}/timeline`, { run_id: runId, events: [] });
+export async function getTimeline(
+  runId: string,
+  filter?: TimelineFilter,
+): Promise<TimelineResponse> {
+  const params = buildTimelineParams(filter);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return safeFetch(`/runs/${runId}/timeline${query}`, { run_id: runId, events: [], total: 0, filtered: 0 });
 }
 
-export async function getTimelineResult(runId: string): Promise<ApiResult<{ run_id: string; events: TimelineEvent[] }>> {
-  return fetchResult<{ run_id: string; events: TimelineEvent[] }>(`/runs/${runId}/timeline`);
+export async function getTimelineResult(
+  runId: string,
+  filter?: TimelineFilter,
+): Promise<ApiResult<TimelineResponse>> {
+  const params = buildTimelineParams(filter);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return fetchResult<TimelineResponse>(`/runs/${runId}/timeline${query}`);
+}
+
+function buildTimelineParams(filter?: TimelineFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  if (!filter) return params;
+  if (filter.tick_from != null) params.set("tick_from", String(filter.tick_from));
+  if (filter.tick_to != null) params.set("tick_to", String(filter.tick_to));
+  if (filter.event_type) params.set("event_type", filter.event_type);
+  if (filter.agent_id) params.set("agent_id", filter.agent_id);
+  if (filter.limit != null) params.set("limit", String(filter.limit));
+  if (filter.offset != null) params.set("offset", String(filter.offset));
+  return params;
 }
 
 export async function getRunEventsResult(

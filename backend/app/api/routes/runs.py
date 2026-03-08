@@ -13,6 +13,7 @@ from app.api.schemas.simulation import (
     StatusResponse,
     TimelineEventResponse,
     TimelineResponse,
+    TimelineRunInfo,
     WorldClockResponse,
     WorldEventResponse,
     WorldEventsResponse,
@@ -387,12 +388,24 @@ async def get_run(
     "/{run_id}/timeline",
     response_model=TimelineResponse,
     summary="获取时间线",
-    description="获取模拟运行的完整事件时间线",
+    description="获取模拟运行的完整事件时间线，支持按 tick 范围、模拟世界时间范围、事件类型、角色等多维过滤",
 )
 async def get_timeline(
     run_id: UUID,
+    tick_from: int | None = None,
+    tick_to: int | None = None,
+    world_datetime_from: str | None = None,  # YYYY-MM-DDTHH:MM 格式，模拟世界日期时间起始
+    world_datetime_to: str | None = None,    # YYYY-MM-DDTHH:MM 格式，模拟世界日期时间结束
+    event_type: str | None = None,
+    agent_id: str | None = None,
+    limit: int = 2000,
+    offset: int = 0,
     session: AsyncSession = Depends(get_db_session),
 ) -> TimelineResponse:
+    from datetime import timedelta
+    from app.sim.context import DEFAULT_WORLD_START_TIME
+    from datetime import UTC
+
     run_repo = RunRepository(session)
     run = await run_repo.get(str(run_id))
     if run is None:
@@ -407,7 +420,73 @@ async def get_timeline(
     agent_name_map = {agent.id: agent.name for agent in agents}
     location_name_map = {location.id: location.name for location in locations}
 
-    events = await event_repo.list_for_run(str(run_id))
+    # 计算世界时间基准信息
+    metadata = run.metadata_json or {}
+    raw_start = metadata.get("world_start_time")
+    if isinstance(raw_start, str):
+        try:
+            world_start = datetime.fromisoformat(raw_start)
+        except ValueError:
+            world_start = DEFAULT_WORLD_START_TIME
+    else:
+        world_start = DEFAULT_WORLD_START_TIME
+    if world_start.tzinfo is None:
+        world_start = world_start.replace(tzinfo=UTC)
+
+    tick_minutes = run.tick_minutes or 5
+
+    # 将模拟世界日期时间转化为精确的 tick 范围
+    # 公式：tick_no = floor((target_datetime - world_start).total_seconds / 60 / tick_minutes)
+    resolved_tick_from = tick_from
+    resolved_tick_to = tick_to
+
+    def parse_world_datetime(raw: str) -> datetime | None:
+        """解析 YYYY-MM-DDTHH:MM 或 YYYY-MM-DD HH:MM 为 datetime（UTC 时区）。"""
+        for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S"):
+            try:
+                dt = datetime.strptime(raw.strip(), fmt)
+                return dt.replace(tzinfo=UTC)
+            except ValueError:
+                continue
+        return None
+
+    if world_datetime_from:
+        dt_from = parse_world_datetime(world_datetime_from)
+        if dt_from is not None:
+            elapsed = (dt_from - world_start).total_seconds() / 60
+            candidate = max(0, int(elapsed // tick_minutes))
+            if resolved_tick_from is None:
+                resolved_tick_from = candidate
+            else:
+                resolved_tick_from = min(resolved_tick_from, candidate)
+
+    if world_datetime_to:
+        dt_to = parse_world_datetime(world_datetime_to)
+        if dt_to is not None:
+            elapsed = (dt_to - world_start).total_seconds() / 60
+            candidate = max(0, int(elapsed // tick_minutes))
+            if resolved_tick_to is None:
+                resolved_tick_to = candidate
+            else:
+                resolved_tick_to = max(resolved_tick_to, candidate)
+
+    # 如果传入的是 agent 名称而非 ID，先做名称 -> ID 的映射
+    resolved_agent_id = agent_id
+    if agent_id and agent_id not in agent_name_map:
+        for a in agents:
+            if a.name.lower() == agent_id.lower():
+                resolved_agent_id = a.id
+                break
+
+    events, total = await event_repo.list_timeline_events(
+        run_id=str(run_id),
+        tick_from=resolved_tick_from,
+        tick_to=resolved_tick_to,
+        event_type=event_type,
+        actor_agent_id=resolved_agent_id,
+        limit=limit,
+        offset=offset,
+    )
 
     def enrich_payload(event) -> dict:
         """Inject actor_name / target_name / location_name into payload."""
@@ -420,8 +499,23 @@ async def get_timeline(
             payload["location_name"] = location_name_map.get(event.location_id, event.location_id)
         return payload
 
+    def tick_to_world_time(tick_no: int) -> tuple[str, str]:
+        """Returns (HH:MM, YYYY-MM-DD) for the given tick."""
+        dt = world_start + timedelta(minutes=tick_no * tick_minutes)
+        return dt.strftime("%H:%M"), dt.strftime("%Y-%m-%d")
+
+    current_world_time = get_run_world_time(run)
+
     return TimelineResponse(
         run_id=str(run_id),
+        total=total,
+        filtered=len(events),
+        run_info=TimelineRunInfo(
+            current_tick=run.current_tick or 0,
+            tick_minutes=tick_minutes,
+            world_start_iso=world_start.isoformat(),
+            current_world_time_iso=current_world_time.isoformat(),
+        ),
         events=[
             TimelineEventResponse(
                 id=event.id,
@@ -429,6 +523,8 @@ async def get_timeline(
                 event_type=event.event_type,
                 importance=event.importance,
                 payload=enrich_payload(event),
+                world_time=tick_to_world_time(event.tick_no)[0],
+                world_date=tick_to_world_time(event.tick_no)[1],
             )
             for event in events
         ],

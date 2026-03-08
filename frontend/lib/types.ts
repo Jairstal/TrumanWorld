@@ -35,6 +35,32 @@ export type TimelineEvent = {
   event_type: EventType;
   importance?: number;
   payload: Record<string, unknown>;
+  world_time?: string;  // HH:MM
+  world_date?: string;  // YYYY-MM-DD
+};
+
+export type TimelineRunInfo = {
+  current_tick: number;
+  tick_minutes: number;
+  world_start_iso: string;
+  current_world_time_iso: string;
+};
+
+export type TimelineResponse = {
+  run_id: string;
+  events: TimelineEvent[];
+  total: number;
+  filtered: number;
+  run_info?: TimelineRunInfo;
+};
+
+export type TimelineFilter = {
+  tick_from?: number;
+  tick_to?: number;
+  event_type?: string;
+  agent_id?: string;
+  limit?: number;
+  offset?: number;
 };
 
 export type WorldClock = {

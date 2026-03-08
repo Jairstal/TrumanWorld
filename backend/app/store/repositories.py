@@ -138,6 +138,59 @@ class EventRepository:
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def list_timeline_events(
+        self,
+        run_id: str,
+        tick_from: int | None = None,
+        tick_to: int | None = None,
+        event_type: str | None = None,
+        actor_agent_id: str | None = None,
+        target_agent_id: str | None = None,
+        keyword: str | None = None,
+        limit: int = 2000,
+        offset: int = 0,
+    ) -> tuple[Sequence[Event], int]:
+        """专为时间线回放设计的全量查询，按 tick 正序排列，支持多维过滤。
+
+        Returns:
+            (events, total_count) 元组，total_count 为过滤后的总条数（用于分页提示）。
+        """
+        from sqlalchemy import func as sql_func
+
+        conditions = [Event.run_id == run_id]
+
+        if tick_from is not None:
+            conditions.append(Event.tick_no >= tick_from)
+        if tick_to is not None:
+            conditions.append(Event.tick_no <= tick_to)
+        if event_type:
+            # 支持逗号分隔的多类型过滤，如 "talk,move"
+            types = [t.strip() for t in event_type.split(",") if t.strip()]
+            if types:
+                conditions.append(Event.event_type.in_(types))
+        if actor_agent_id:
+            conditions.append(
+                or_(Event.actor_agent_id == actor_agent_id, Event.target_agent_id == actor_agent_id)
+            )
+
+        where_clause = and_(*conditions)
+
+        # 统计总条数
+        count_stmt = select(sql_func.count(Event.id)).where(where_clause)
+        count_result = await self.session.execute(count_stmt)
+        total = count_result.scalar_one() or 0
+
+        # 按 tick 正序 + created_at 正序（方便时间线从旧到新回放）
+        stmt: Select[tuple[Event]] = (
+            select(Event)
+            .where(where_clause)
+            .order_by(Event.tick_no.asc(), Event.created_at.asc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all(), total
+
     async def create(self, event: Event) -> Event:
         self.session.add(event)
         await self.session.commit()
