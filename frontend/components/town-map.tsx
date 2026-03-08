@@ -175,7 +175,26 @@ function buildMapData(world: WorldSnapshot) {
     .filter((path): path is MovePath => path !== null)
     .slice(0, 4);
 
-  return { nodes, links, movePaths };
+  // 动态装饰路径
+  const homeNode = nodes.find((n) => n.type === "home");
+  const plazaNode = nodes.find((n) => n.type === "plaza");
+  const officeNode = nodes.find((n) => n.type === "office");
+
+  // 主街道：经过住宅 -> 广场 -> 办公室，用二次贝塞尔穿过三点
+  let mainRoadPath = "";
+  if (homeNode && plazaNode && officeNode) {
+    // 以广场为控制点，让曲线自然弯曲穿过三个节点区域
+    const cpX = plazaNode.svgX;
+    const cpY = plazaNode.svgY;
+    mainRoadPath = `M ${homeNode.svgX} ${homeNode.svgY} Q ${cpX} ${cpY} ${officeNode.svgX} ${officeNode.svgY}`;
+  }
+
+  // 海岸线：沿最低节点下方弧过，契合"海湾"世界观
+  const maxSvgY = nodes.length > 0 ? Math.max(...nodes.map((n) => n.svgY)) : SVG_H / 2;
+  const coastY = Math.min(maxSvgY + 65, SVG_H - 15);
+  const coastPath = `M -20 ${coastY + 25} C 160 ${coastY - 10} 360 ${coastY + 40} 560 ${coastY - 5} S 720 ${coastY + 15} 740 ${coastY}`;
+
+  return { nodes, links, movePaths, mainRoadPath, coastPath };
 }
 
 export function TownMap({
@@ -195,7 +214,7 @@ export function TownMap({
     originY: number;
   } | null>(null);
 
-  const { nodes, links, movePaths } = useMemo(() => buildMapData(world), [world]);
+  const { nodes, links, movePaths, mainRoadPath, coastPath } = useMemo(() => buildMapData(world), [world]);
 
   // 昼夜循环效果
   const hour = world.world_clock?.hour ?? 12;
@@ -325,88 +344,94 @@ export function TownMap({
             拖拽平移、滚轮缩放，点击地点查看详情。夜晚时有人的地点会亮灯。
           </p>
         </div>
-        <div className={`flex flex-wrap items-center justify-end gap-2 text-xs ${timeStyle.isDark ? "text-slate-400" : "text-slate-500"}`}>
-          {/* 地点类型图例 */}
-          <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 ${timeStyle.isDark ? "bg-slate-700" : "bg-slate-50"}`}>
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
-            咖啡馆
-          </span>
-          <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 ${timeStyle.isDark ? "bg-slate-700" : "bg-slate-50"}`}>
-            <span className="h-2 w-2 rounded-full bg-sky-500" />
-            广场
-          </span>
-          <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 ${timeStyle.isDark ? "bg-slate-700" : "bg-slate-50"}`}>
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            公园
-          </span>
-          <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 ${timeStyle.isDark ? "bg-slate-700" : "bg-slate-50"}`}>
-            <span className="h-2 w-2 rounded-full bg-violet-500" />
-            商店
-          </span>
-          <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 ${timeStyle.isDark ? "bg-slate-700" : "bg-slate-50"}`}>
-            <span className="h-2 w-2 rounded-full bg-pink-500" />
-            住宅
-          </span>
-          {/* 分隔线 */}
-          <span className={`h-4 w-px ${timeStyle.isDark ? "bg-slate-600" : "bg-slate-200"}`} />
-          {/* 热力等级图例 */}
-          <span className="flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-red-700">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 shadow-sm shadow-red-400" />
-            非常活跃
-          </span>
-          <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
-            较活跃
-          </span>
-          <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            一般
-          </span>
-          {/* 夜晚灯光图例 */}
-          {timeStyle.isDark && (
-            <>
-              <span className={`h-4 w-px ${timeStyle.isDark ? "bg-slate-600" : "bg-slate-200"}`} />
-              <span className="flex items-center gap-1 rounded-full bg-amber-100/50 px-2.5 py-1 text-amber-300">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
+        <div className={`flex flex-col items-end gap-1.5 text-xs ${timeStyle.isDark ? "text-slate-400" : "text-slate-500"}`}>
+          {/* 第一行：地点类型图例 */}
+          <div className="flex items-center gap-1.5">
+            {([
+              { color: "bg-amber-500", label: "咖啡馆" },
+              { color: "bg-sky-500", label: "广场" },
+              { color: "bg-emerald-500", label: "公园" },
+              { color: "bg-violet-500", label: "商店" },
+              { color: "bg-pink-500", label: "住宅" },
+              { color: "bg-blue-500", label: "办公室" },
+              { color: "bg-red-500", label: "医院" },
+            ] as { color: string; label: string }[]).map(({ color, label }) => (
+              <span
+                key={label}
+                className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                  timeStyle.isDark ? "bg-slate-700" : "bg-slate-50"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
+                {label}
+              </span>
+            ))}
+          </div>
+          {/* 第二行：热力等级 + 夜晚灯光 + 控制按钮 */}
+          <div className="flex items-center gap-1.5">
+            {/* 热力等级图例 */}
+            <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+              timeStyle.isDark ? "bg-red-900/40 text-red-300" : "bg-red-50 text-red-700"
+            }`}>
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+              非常活跃
+            </span>
+            <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+              timeStyle.isDark ? "bg-amber-900/40 text-amber-300" : "bg-amber-50 text-amber-700"
+            }`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              较活跃
+            </span>
+            <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+              timeStyle.isDark ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700"
+            }`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              一般
+            </span>
+            {/* 夜晚灯光图例 */}
+            {timeStyle.isDark && (
+              <span className="flex items-center gap-1 rounded-full bg-amber-100/20 px-2 py-0.5 text-amber-300">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
                 灯亮
               </span>
-            </>
-          )}
-          {/* 控制按钮 */}
-          <span className={`h-4 w-px ${timeStyle.isDark ? "bg-slate-600" : "bg-slate-200"}`} />
-          <button
-            type="button"
-            onClick={() => zoomMap(0.85)}
-            className={`rounded-full border px-2 py-1 transition hover:border-moss hover:text-moss ${
-              timeStyle.isDark
-                ? "border-slate-600 bg-slate-700 text-slate-300"
-                : "border-slate-200 bg-white text-slate-600"
-            }`}
-          >
-            放大
-          </button>
-          <button
-            type="button"
-            onClick={() => zoomMap(1.15)}
-            className={`rounded-full border px-2 py-1 transition hover:border-moss hover:text-moss ${
-              timeStyle.isDark
-                ? "border-slate-600 bg-slate-700 text-slate-300"
-                : "border-slate-200 bg-white text-slate-600"
-            }`}
-          >
-            缩小
-          </button>
-          <button
-            type="button"
-            onClick={resetView}
-            className={`rounded-full border px-2 py-1 transition hover:border-moss hover:text-moss ${
-              timeStyle.isDark
-                ? "border-slate-600 bg-slate-700 text-slate-300"
-                : "border-slate-200 bg-white text-slate-600"
-            }`}
-          >
-            重置
-          </button>
+            )}
+            {/* 分隔线 */}
+            <span className={`h-3.5 w-px ${timeStyle.isDark ? "bg-slate-600" : "bg-slate-200"}`} />
+            {/* 控制按钮 */}
+            <button
+              type="button"
+              onClick={() => zoomMap(0.85)}
+              className={`rounded-full border px-2 py-0.5 transition hover:border-moss hover:text-moss ${
+                timeStyle.isDark
+                  ? "border-slate-600 bg-slate-700 text-slate-300"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              放大
+            </button>
+            <button
+              type="button"
+              onClick={() => zoomMap(1.15)}
+              className={`rounded-full border px-2 py-0.5 transition hover:border-moss hover:text-moss ${
+                timeStyle.isDark
+                  ? "border-slate-600 bg-slate-700 text-slate-300"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              缩小
+            </button>
+            <button
+              type="button"
+              onClick={resetView}
+              className={`rounded-full border px-2 py-0.5 transition hover:border-moss hover:text-moss ${
+                timeStyle.isDark
+                  ? "border-slate-600 bg-slate-700 text-slate-300"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              重置
+            </button>
+          </div>
         </div>
       </div>
       <div
@@ -455,21 +480,26 @@ export function TownMap({
             </clipPath>
           </defs>
 
-          {/* 装饰性路径 */}
-          <path
-            d="M 40 315 C 180 245, 270 255, 385 210 S 590 150, 670 190"
-            fill="none"
-            stroke={timeStyle.isDark ? "rgba(148,163,184,0.15)" : "rgba(148,163,184,0.3)"}
-            strokeWidth="24"
-            strokeLinecap="round"
-          />
-          <path
-            d="M 120 90 C 245 110, 320 155, 485 110 S 620 90, 660 125"
-            fill="none"
-            stroke={timeStyle.isDark ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.7)"}
-            strokeWidth="12"
-            strokeLinecap="round"
-          />
+          {/* 海岸线装饰 - 沿最低节点下方弧过，蓝色半透明 */}
+          {coastPath && (
+            <path
+              d={coastPath}
+              fill="none"
+              stroke={timeStyle.isDark ? "rgba(147,197,253,0.12)" : "rgba(147,197,253,0.35)"}
+              strokeWidth="32"
+              strokeLinecap="round"
+            />
+          )}
+          {/* 主街道 - 动态穿过住宅 -> 广场 -> 办公室 */}
+          {mainRoadPath && (
+            <path
+              d={mainRoadPath}
+              fill="none"
+              stroke={timeStyle.isDark ? "rgba(148,163,184,0.12)" : "rgba(148,163,184,0.28)"}
+              strokeWidth="20"
+              strokeLinecap="round"
+            />
+          )}
 
           {linkCoordinates.map((link) => (
             <motion.line

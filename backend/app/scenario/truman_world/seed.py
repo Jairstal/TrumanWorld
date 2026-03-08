@@ -162,8 +162,8 @@ class TrumanWorldSeedBuilder:
             name="小镇广场",
             location_type="plaza",
             capacity=10,
-            x=0,
-            y=0,
+            x=1,
+            y=2,
             attributes={"kind": "social"},
         )
         apartment = Location(
@@ -172,7 +172,7 @@ class TrumanWorldSeedBuilder:
             name="海滨公寓",
             location_type="home",
             capacity=3,
-            x=-1,
+            x=0,
             y=0,
             attributes={"kind": "private"},
         )
@@ -182,7 +182,7 @@ class TrumanWorldSeedBuilder:
             name="港务办公室",
             location_type="office",
             capacity=6,
-            x=2,
+            x=3,
             y=0,
             attributes={"kind": "work"},
         )
@@ -192,8 +192,8 @@ class TrumanWorldSeedBuilder:
             name="街角咖啡馆",
             location_type="cafe",
             capacity=6,
-            x=1,
-            y=0,
+            x=2,
+            y=1,
             attributes={"kind": "work"},
         )
         hospital = Location(
@@ -202,8 +202,8 @@ class TrumanWorldSeedBuilder:
             name="海湾医院",
             location_type="hospital",
             capacity=8,
-            x=3,
-            y=1,
+            x=4,
+            y=2,
             attributes={"kind": "work"},
         )
 
