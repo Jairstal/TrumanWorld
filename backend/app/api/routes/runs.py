@@ -454,7 +454,7 @@ async def get_world_snapshot(
 
     agents = await agent_repo.list_for_run(str(run_id))
     locations = await location_repo.list_for_run(str(run_id))
-    events = await event_repo.list_for_run(str(run_id), limit=12)
+    events = await event_repo.list_for_run(str(run_id), limit=60)
 
     agent_summaries = {
         agent.id: AgentSummaryResponse(

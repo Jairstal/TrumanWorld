@@ -6,6 +6,33 @@ import { MetricChip } from "@/components/metric-chip";
 import { getAgentResult } from "@/lib/api";
 import { describeAgentEvent } from "@/lib/event-utils";
 
+// 人格特质中文映射
+const PERSONALITY_LABELS: Record<string, string> = {
+  openness: "开放性",
+  conscientiousness: "尽责性",
+  extraversion: "外向性",
+  agreeableness: "宜人性",
+  neuroticism: "神经质",
+  charisma: "魅力",
+  humor: "幽默",
+  empathy: "同理心",
+  confidence: "自信",
+  optimism: "乐观",
+};
+
+// 角色配置中文映射
+const PROFILE_LABELS: Record<string, string> = {
+  bio: "个人简介",
+  world_role: "世界角色",
+  workplace: "工作地点",
+  work_description: "工作描述",
+  home: "居住地",
+  occupation: "职业",
+  capabilities: "能力",
+  model: "模型配置",
+  work_schedule: "工作时间",
+};
+
 // 强制动态渲染，避免构建时获取数据
 export const dynamic = "force-dynamic";
 
@@ -104,6 +131,52 @@ export default async function AgentPage({ params }: AgentPageProps) {
 
           <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
             <aside className="space-y-4">
+              {/* 人设卡片 */}
+              {(agent.personality && Object.keys(agent.personality).length > 0) || (agent.profile && Object.keys(agent.profile).length > 0) ? (
+                <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">人设档案</p>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">角色设定</h2>
+
+                  {agent.personality && Object.keys(agent.personality).length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-xs font-medium text-slate-500">人格特质</p>
+                      <div className="mt-2 space-y-2">
+                        {Object.entries(agent.personality).map(([key, value]) => (
+                          <div key={key} className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600">{PERSONALITY_LABELS[key] || key}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                  className="h-full rounded-full bg-moss"
+                                  style={{ width: `${(Number(value) || 0) * 100}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-slate-500">{String(value)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {agent.profile && Object.keys(agent.profile).length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-xs font-medium text-slate-500">角色配置</p>
+                      <div className="mt-2 space-y-1.5">
+                        {Object.entries(agent.profile)
+                          .filter(([key]) => !key.endsWith('_id') && key !== 'root_dir')
+                          .map(([key, value]) => (
+                          <div key={key} className="flex items-start justify-between text-sm">
+                            <span className="text-slate-500">{PROFILE_LABELS[key] || key}</span>
+                            <span className="text-right text-slate-700">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              ) : null}
+
               <section className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">关系网络</p>
                 <h2 className="mt-2 text-xl font-semibold text-ink">{agent.relationships.length} 条关系</h2>
@@ -147,103 +220,130 @@ export default async function AgentPage({ params }: AgentPageProps) {
             </aside>
 
             <div className="grid gap-6 xl:grid-cols-2">
-              <section className="flex min-h-[520px] flex-col rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur">
-                <div className="mb-4 flex items-start justify-between gap-3">
+              {/* 角色行为流 */}
+              <section className="flex min-h-0 flex-col rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur">
+                <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">近期事件</p>
-                    <h2 className="mt-1 text-xl font-semibold text-ink">角色行为流</h2>
+                    <h2 className="mt-1 text-lg font-semibold text-ink">角色行为流</h2>
                   </div>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-500">
                     {agent.recent_events.length} 条
                   </span>
                 </div>
-
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            
+                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
                   {agent.recent_events.length === 0 ? (
                     <p className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">暂无近期事件。</p>
                   ) : (
                     agent.recent_events.map((event) => {
                       const message = event.payload.message as string | undefined;
+                      const isTalk = event.event_type === "talk";
+                      const isMove = event.event_type === "move";
+                      const isNoise = event.event_type === "work" || event.event_type === "rest";
                       return (
-                        <article key={event.id} className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-medium text-ink">{describeAgentEvent(event)}</p>
-                              <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                        <article
+                          key={event.id}
+                          className={`rounded-2xl px-3 py-2.5 ${
+                            isTalk
+                              ? "border border-sky-100 bg-sky-50/60"
+                              : isMove
+                              ? "border border-emerald-100 bg-emerald-50/50"
+                              : isNoise
+                              ? "bg-slate-50/70"
+                              : "border border-slate-100 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className={`shrink-0 text-[10px] font-medium uppercase tracking-wider ${
+                                isTalk ? "text-sky-500" : isMove ? "text-emerald-600" : "text-slate-400"
+                              }`}>
                                 {event.event_type}
-                              </p>
+                              </span>
+                              <span className={`truncate text-sm ${
+                                isNoise ? "text-slate-400" : "text-ink"
+                              }`}>
+                                {describeAgentEvent(event)}
+                              </span>
                             </div>
-                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-500">
-                              Tick {event.tick_no}
-                            </span>
+                            <span className="shrink-0 text-[11px] text-slate-400">T{event.tick_no}</span>
                           </div>
-
-                          {message ? (
-                            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-3 text-sm italic text-slate-700">
-                              “{message}”
+            
+                          {isTalk && message ? (
+                            <div className="mt-1.5 rounded-xl bg-white/80 px-3 py-2 text-sm italic text-slate-600">
+                              &ldquo;{message}&rdquo;
                             </div>
                           ) : null}
-
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            {event.actor_name ? (
-                              <span className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700">
-                                {event.actor_name}
-                              </span>
-                            ) : null}
-                            {event.target_name ? (
-                              <span className="rounded-full border border-rose-100 bg-rose-50 px-2.5 py-1 text-[11px] text-rose-700">
-                                → {event.target_name}
-                              </span>
-                            ) : null}
-                            {event.location_name ? (
-                              <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-700">
-                                📍 {event.location_name}
-                              </span>
-                            ) : null}
-                          </div>
+            
+                          {(event.target_name || event.location_name) && !isNoise ? (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {event.target_name ? (
+                                <span className="rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] text-rose-600">
+                                  → {event.target_name}
+                                </span>
+                              ) : null}
+                              {event.location_name ? (
+                                <span className="rounded-full border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-500">
+                                  📍 {event.location_name}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </article>
                       );
                     })
                   )}
                 </div>
               </section>
-
-              <section className="flex min-h-[520px] flex-col rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur">
-                <div className="mb-4 flex items-start justify-between gap-3">
+            
+              {/* 内部记忆栈 */}
+              <section className="flex min-h-0 flex-col rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur">
+                <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">记忆</p>
-                    <h2 className="mt-1 text-xl font-semibold text-ink">内部记忆栈</h2>
+                    <h2 className="mt-1 text-lg font-semibold text-ink">内部记忆栈</h2>
                   </div>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-500">
                     {agent.memories.length} 条
                   </span>
                 </div>
-
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            
+                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
                   {agent.memories.length === 0 ? (
                     <p className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">暂无记忆数据。</p>
                   ) : (
-                    agent.memories.map((memory) => (
-                      <article key={memory.id} className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium leading-6 text-ink">{memory.summary ?? memory.memory_type}</p>
-                            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{memory.memory_type}</p>
+                    agent.memories.map((memory) => {
+                      const isLowSignal = (memory.importance ?? 0) === 0;
+                      return (
+                        <article
+                          key={memory.id}
+                          className={`rounded-2xl px-3 py-2.5 ${
+                            isLowSignal ? "bg-slate-50/70" : "border border-violet-100 bg-violet-50/50"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className={`text-sm leading-5 ${
+                              isLowSignal ? "text-slate-400" : "text-ink"
+                            }`}>
+                              {memory.content}
+                            </p>
+                            <div className="flex shrink-0 flex-col items-end gap-1">
+                              {!isLowSignal && (
+                                <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] text-violet-600">
+                                  ★ {memory.importance}
+                                </span>
+                              )}
+                              {memory.related_agent_name ? (
+                                <span className="rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] text-rose-600">
+                                  {memory.related_agent_name}
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-500">
-                            重要度 {memory.importance ?? 0}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-sm leading-6 text-slate-600">{memory.content}</p>
-                        {memory.related_agent_name ? (
-                          <div className="mt-3">
-                            <span className="rounded-full border border-rose-100 bg-rose-50 px-2.5 py-1 text-[11px] text-rose-700">
-                              关联角色 {memory.related_agent_name}
-                            </span>
-                          </div>
-                        ) : null}
-                      </article>
-                    ))
+                        </article>
+                      );
+                    })
                   )}
                 </div>
               </section>

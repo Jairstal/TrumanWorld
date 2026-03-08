@@ -131,6 +131,8 @@ export type AgentDetails = {
   current_goal?: string;
   status?: Record<string, unknown>;
   config_id?: string; // agent 配置 ID，用于加载自定义 logo
+  personality?: Record<string, unknown>;
+  profile?: Record<string, unknown>;
   recent_events: AgentRecentEvent[];
   memories: AgentMemory[];
   relationships: AgentRelationship[];

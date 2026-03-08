@@ -97,6 +97,8 @@ class AgentDetailResponse(BaseModel):
     status: dict = Field(default_factory=dict)
     current_goal: str | None = None
     config_id: str | None = None
+    personality: dict = Field(default_factory=dict)
+    profile: dict = Field(default_factory=dict)
     recent_events: list[AgentEventResponse]
     memories: list[AgentMemoryResponse]
     relationships: list[AgentRelationshipResponse]

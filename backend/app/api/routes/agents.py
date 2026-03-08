@@ -107,6 +107,8 @@ async def get_agent(
         status=agent.status or {},
         current_goal=agent.current_goal,
         config_id=get_agent_config_id(agent.profile),
+        personality=agent.personality or {},
+        profile=agent.profile or {},
         recent_events=[
             AgentEventResponse(
                 id=event.id,
