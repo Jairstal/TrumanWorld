@@ -345,29 +345,25 @@ export function TownMap({
         <div className={`flex flex-col items-end gap-1.5 text-xs ${timeStyle.isDark ? "text-slate-400" : "text-slate-500"}`}>
           {/* 热力等级 + 夜晚灯光 + 控制按钮 */}
           <div className="flex items-center gap-1.5">
-            {/* 热力等级图例 */}
-            <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+            {/* 热力等级图例 - 背景色已说明状态，无需小圆点 */}
+            <span className={`rounded-full px-2 py-0.5 ${
               timeStyle.isDark ? "bg-red-900/40 text-red-300" : "bg-red-50 text-red-700"
             }`}>
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
               非常活跃
             </span>
-            <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+            <span className={`rounded-full px-2 py-0.5 ${
               timeStyle.isDark ? "bg-amber-900/40 text-amber-300" : "bg-amber-50 text-amber-700"
             }`}>
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
               较活跃
             </span>
-            <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+            <span className={`rounded-full px-2 py-0.5 ${
               timeStyle.isDark ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700"
             }`}>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               一般
             </span>
             {/* 夜晚灯光图例 */}
             {timeStyle.isDark && (
-              <span className="flex items-center gap-1 rounded-full bg-amber-100/20 px-2 py-0.5 text-amber-300">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+              <span className="rounded-full bg-amber-100/20 px-2 py-0.5 text-amber-300">
                 灯亮
               </span>
             )}

@@ -54,9 +54,10 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
+      {/* 侧边栏 - 完全折叠时隐藏 */}
       <nav
         className={`flex flex-shrink-0 flex-col border-r border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,249,252,0.72))] backdrop-blur-xl transition-all duration-300 ${
-          isCollapsed ? "w-16" : "w-[272px]"
+          isCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-[272px] opacity-100"
         }`}
       >
         <div className="flex items-center justify-between border-b border-white/60 px-4 py-3">
@@ -64,26 +65,24 @@ export function AppShell({ children }: AppShellProps) {
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-md shadow-slate-900/10">
               <Image src="/logo.svg" alt="Truman World Logo" width={36} height={36} priority />
             </div>
-            {!isCollapsed && (
-              <div className="overflow-hidden">
-                <h1 className="text-sm font-semibold text-ink">Truman World</h1>
-                <p className="text-xs text-slate-400">楚门的世界 AI 版 · 导演控制台</p>
-              </div>
-            )}
+            <div className="overflow-hidden">
+              <h1 className="text-sm font-semibold text-ink">Truman World</h1>
+              <p className="text-xs text-slate-400">楚门的世界 AI 版 · 导演控制台</p>
+            </div>
           </div>
 
           <button
             type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => setIsCollapsed(true)}
             className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-            title={isCollapsed ? "展开" : "收起"}
+            title="收起"
           >
             <svg
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
-              className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? "rotate-180" : ""}`}
+              className="h-4 w-4"
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
@@ -99,12 +98,12 @@ export function AppShell({ children }: AppShellProps) {
                 icon={item.icon}
                 label={item.label}
                 exact={item.exact}
-                isCollapsed={isCollapsed}
+                isCollapsed={false}
               />
             ))}
           </div>
 
-          {!isCollapsed && runsResult?.error ? (
+          {runsResult?.error ? (
             <div className="mt-4 px-3">
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
                 {runsResult.error === "network_error" ? "运行列表暂时不可达" : "运行列表加载失败"}
@@ -112,7 +111,7 @@ export function AppShell({ children }: AppShellProps) {
             </div>
           ) : null}
 
-          {!isCollapsed && runs && runs.length > 0 && (
+          {runs && runs.length > 0 && (
             <div className="mt-4 px-3">
               <p className="mb-2 px-2 text-xs font-medium uppercase tracking-[0.2em] text-slate-400">
                 世界列表
@@ -127,18 +126,27 @@ export function AppShell({ children }: AppShellProps) {
         </div>
 
         <div className="border-t border-white/60 p-3">
-          {!isCollapsed ? (
-            <div className="flex items-center justify-between rounded-xl bg-white/50 px-3 py-2">
-              <span className="text-xs text-slate-400">v0.1.0</span>
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">MVP</span>
-            </div>
-          ) : (
-            <div className="flex justify-center">
-              <span className="text-xs text-slate-400">v0.1</span>
-            </div>
-          )}
+          <div className="flex items-center justify-between rounded-xl bg-white/50 px-3 py-2">
+            <span className="text-xs text-slate-400">v0.1.0</span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">MVP</span>
+          </div>
         </div>
       </nav>
+
+      {/* 展开按钮 - 参考 ChatGPT 风格，侧边栏折叠时显示在左边缘 */}
+      {isCollapsed && (
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(false)}
+          className="absolute left-0 top-1/2 z-50 flex h-12 w-6 -translate-y-1/2 items-center justify-center rounded-r-lg border border-l-0 border-slate-200 bg-white/90 text-slate-400 shadow-sm backdrop-blur transition-all hover:w-7 hover:bg-white hover:text-slate-600"
+          title="展开侧边栏"
+        >
+          {/* 双竖线图标 - 参考 ChatGPT */}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+            <path d="M9 6v12M15 6v12" />
+          </svg>
+        </button>
+      )}
 
       <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
     </div>
