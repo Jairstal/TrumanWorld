@@ -1,7 +1,8 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.store.models import SimulationRun
+import app.agent.connection_pool as connection_pool_module
+from app.store.models import Agent, DirectorMemory, Event, Location, Memory, Relationship, SimulationRun
 from app.sim.scheduler import get_scheduler
 
 
@@ -76,6 +77,59 @@ async def test_list_runs_returns_created_runs(client):
     assert response.status_code == 200
     names = {item["name"] for item in response.json()}
     assert {"run-a", "run-b"} <= names
+
+
+@pytest.mark.asyncio
+async def test_list_runs_includes_aggregated_counts(client, db_session: AsyncSession):
+    run_id = "00000000-0000-0000-0000-000000000201"
+    db_session.add_all(
+        [
+            SimulationRun(id=run_id, name="counted-run", status="running"),
+            Agent(
+                id="agent-count-1",
+                run_id=run_id,
+                name="Alice",
+                occupation="resident",
+                personality={},
+                profile={},
+                status={},
+                current_plan={},
+            ),
+            Agent(
+                id="agent-count-2",
+                run_id=run_id,
+                name="Bob",
+                occupation="resident",
+                personality={},
+                profile={},
+                status={},
+                current_plan={},
+            ),
+            Location(
+                id="loc-count-1",
+                run_id=run_id,
+                name="Cafe",
+                location_type="cafe",
+                capacity=4,
+            ),
+            Event(
+                id="event-count-1",
+                run_id=run_id,
+                tick_no=1,
+                event_type="talk",
+                payload={},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.get("/api/runs")
+
+    assert response.status_code == 200
+    run = next(item for item in response.json() if item["id"] == run_id)
+    assert run["agent_count"] == 2
+    assert run["location_count"] == 1
+    assert run["event_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -165,6 +219,166 @@ async def test_get_timeline_for_empty_run(client):
 
 
 @pytest.mark.asyncio
+async def test_get_timeline_resolves_agent_name_and_world_datetime_filters(client, db_session):
+    run_id = "00000000-0000-0000-0000-000000000202"
+    run = SimulationRun(
+        id=run_id,
+        name="timeline-filter-run",
+        status="running",
+        tick_minutes=5,
+        metadata_json={"world_start_time": "2026-03-02T07:00:00+00:00"},
+    )
+    alice = Agent(
+        id="agent-alice-filter",
+        run_id=run_id,
+        name="Alice",
+        occupation="resident",
+        personality={},
+        profile={},
+        status={},
+        current_plan={},
+    )
+    bob = Agent(
+        id="agent-bob-filter",
+        run_id=run_id,
+        name="Bob",
+        occupation="resident",
+        personality={},
+        profile={},
+        status={},
+        current_plan={},
+    )
+    db_session.add_all(
+        [
+            run,
+            alice,
+            bob,
+            Event(
+                id="timeline-event-1",
+                run_id=run_id,
+                tick_no=1,
+                event_type="talk",
+                actor_agent_id=alice.id,
+                target_agent_id=bob.id,
+                payload={},
+            ),
+            Event(
+                id="timeline-event-2",
+                run_id=run_id,
+                tick_no=3,
+                event_type="move",
+                actor_agent_id=bob.id,
+                payload={},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.get(
+        f"/api/runs/{run_id}/timeline",
+        params={
+            "agent_id": "Alice",
+            "world_datetime_from": "2026-03-02T07:05",
+            "world_datetime_to": "2026-03-02T07:05",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["filtered"] == 1
+    assert [event["id"] for event in body["events"]] == ["timeline-event-1"]
+    assert body["events"][0]["payload"]["actor_name"] == "Alice"
+    assert body["events"][0]["payload"]["target_name"] == "Bob"
+    assert body["events"][0]["world_time"] == "07:05"
+    assert body["events"][0]["world_date"] == "2026-03-02"
+
+
+@pytest.mark.asyncio
+async def test_get_run_events_supports_category_filters(client, db_session):
+    run_id = "00000000-0000-0000-0000-000000000203"
+    db_session.add_all(
+        [
+            SimulationRun(id=run_id, name="events-run", status="running"),
+            Agent(
+                id="agent-event-a",
+                run_id=run_id,
+                name="Alice",
+                occupation="resident",
+                personality={},
+                profile={},
+                status={},
+                current_plan={},
+            ),
+            Agent(
+                id="agent-event-b",
+                run_id=run_id,
+                name="Bob",
+                occupation="resident",
+                personality={},
+                profile={},
+                status={},
+                current_plan={},
+            ),
+            Location(
+                id="loc-event-cafe",
+                run_id=run_id,
+                name="Cafe",
+                location_type="cafe",
+                capacity=4,
+            ),
+            Event(
+                id="event-social",
+                run_id=run_id,
+                tick_no=1,
+                event_type="talk",
+                actor_agent_id="agent-event-a",
+                target_agent_id="agent-event-b",
+                payload={},
+            ),
+            Event(
+                id="event-move",
+                run_id=run_id,
+                tick_no=2,
+                event_type="move",
+                actor_agent_id="agent-event-a",
+                location_id="loc-event-cafe",
+                payload={},
+            ),
+            Event(
+                id="event-rest",
+                run_id=run_id,
+                tick_no=3,
+                event_type="rest",
+                actor_agent_id="agent-event-b",
+                payload={},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    social = await client.get(f"/api/runs/{run_id}/events", params={"event_type": "social"})
+    movement = await client.get(f"/api/runs/{run_id}/events", params={"event_type": "movement"})
+    activity = await client.get(f"/api/runs/{run_id}/events", params={"event_type": "activity"})
+
+    assert social.status_code == 200
+    assert [event["id"] for event in social.json()["events"]] == ["event-social"]
+    assert movement.status_code == 200
+    assert [event["id"] for event in movement.json()["events"]] == ["event-move"]
+    assert activity.status_code == 200
+    assert [event["id"] for event in activity.json()["events"]] == ["event-rest"]
+
+
+class _FakePool:
+    def __init__(self) -> None:
+        self.cleaned_runs: list[str] = []
+
+    async def cleanup_run(self, run_id: str) -> int:
+        self.cleaned_runs.append(run_id)
+        return 1
+
+
+@pytest.mark.asyncio
 async def test_get_world_snapshot_returns_locations_agents_and_public_events(client):
     create_response = await client.post("/api/runs", json={"name": "world-run"})
     run_id = create_response.json()["id"]
@@ -236,6 +450,73 @@ async def test_get_director_memories_returns_memory_details(client):
 
 
 @pytest.mark.asyncio
+async def test_get_director_memories_marks_consumed_and_expired_entries(client, db_session):
+    run_id = "00000000-0000-0000-0000-000000000205"
+    db_session.add_all(
+        [
+            SimulationRun(id=run_id, name="director-memory-status", status="running", current_tick=12),
+            Agent(
+                id="agent-cast-memory",
+                run_id=run_id,
+                name="Meryl",
+                occupation="resident",
+                personality={},
+                profile={},
+                status={},
+                current_plan={},
+            ),
+            Agent(
+                id="agent-target-memory",
+                run_id=run_id,
+                name="Truman",
+                occupation="resident",
+                personality={},
+                profile={},
+                status={},
+                current_plan={},
+            ),
+            Location(
+                id="loc-memory-status",
+                run_id=run_id,
+                name="Plaza",
+                location_type="plaza",
+                capacity=8,
+            ),
+            DirectorMemory(
+                id="director-memory-consumed",
+                run_id=run_id,
+                tick_no=10,
+                scene_goal="gather",
+                target_cast_ids='["agent-cast-memory"]',
+                target_agent_id="agent-target-memory",
+                was_executed=True,
+                metadata_json={"location_hint": "loc-memory-status"},
+            ),
+            DirectorMemory(
+                id="director-memory-expired",
+                run_id=run_id,
+                tick_no=1,
+                scene_goal="activity",
+                target_cast_ids='["agent-cast-memory"]',
+                was_executed=False,
+                metadata_json={"location_hint": "loc-memory-status"},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.get(f"/api/runs/{run_id}/director/memories")
+
+    assert response.status_code == 200
+    memories = {memory["id"]: memory for memory in response.json()["memories"]}
+    assert memories["director-memory-consumed"]["delivery_status"] == "consumed"
+    assert memories["director-memory-consumed"]["target_agent_name"] == "Truman"
+    assert memories["director-memory-consumed"]["target_cast_names"] == ["Meryl"]
+    assert memories["director-memory-consumed"]["location_name"] == "Plaza"
+    assert memories["director-memory-expired"]["delivery_status"] == "expired"
+
+
+@pytest.mark.asyncio
 async def test_get_director_observation_returns_assessment(client):
     create_response = await client.post("/api/runs", json={"name": "observer-run"})
     run_id = create_response.json()["id"]
@@ -256,6 +537,14 @@ async def test_get_director_observation_returns_assessment(client):
 @pytest.mark.asyncio
 async def test_run_not_found_returns_404(client):
     response = await client.get("/api/runs/00000000-0000-0000-0000-000000000001")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Run not found"
+
+
+@pytest.mark.asyncio
+async def test_get_run_events_returns_404_for_missing_run(client):
+    response = await client.get("/api/runs/00000000-0000-0000-0000-000000000206/events")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Run not found"
@@ -286,6 +575,42 @@ async def test_inject_director_event_persists_to_timeline(client):
 
 
 @pytest.mark.asyncio
+async def test_get_timeline_supports_order_desc_and_event_type_filter(client, db_session):
+    run_id = "00000000-0000-0000-0000-000000000207"
+    db_session.add_all(
+        [
+            SimulationRun(id=run_id, name="timeline-order-run", status="running"),
+            Event(
+                id="timeline-order-talk",
+                run_id=run_id,
+                tick_no=2,
+                event_type="talk",
+                payload={},
+            ),
+            Event(
+                id="timeline-order-move",
+                run_id=run_id,
+                tick_no=5,
+                event_type="move",
+                payload={},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.get(
+        f"/api/runs/{run_id}/timeline",
+        params={"event_type": "move", "order_desc": "true"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["filtered"] == 1
+    assert [event["id"] for event in body["events"]] == ["timeline-order-move"]
+
+
+@pytest.mark.asyncio
 async def test_inject_director_event_rejects_unknown_event_type(client):
     create_response = await client.post("/api/runs", json={"name": "director-run-invalid"})
     run_id = create_response.json()["id"]
@@ -300,3 +625,121 @@ async def test_inject_director_event_rejects_unknown_event_type(client):
     )
 
     assert inject_response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_delete_run_removes_related_records_and_cleans_pool(
+    client, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    run_id = "00000000-0000-0000-0000-000000000204"
+    fake_pool = _FakePool()
+    monkeypatch.setattr(connection_pool_module, "get_connection_pool", lambda: _return_async(fake_pool))
+
+    db_session.add_all(
+        [
+            SimulationRun(id=run_id, name="delete-run", status="running"),
+            Agent(
+                id="agent-delete-a",
+                run_id=run_id,
+                name="Alice",
+                occupation="resident",
+                current_location_id="loc-delete",
+                personality={},
+                profile={},
+                status={},
+                current_plan={},
+            ),
+            Agent(
+                id="agent-delete-b",
+                run_id=run_id,
+                name="Bob",
+                occupation="resident",
+                personality={},
+                profile={},
+                status={},
+                current_plan={},
+            ),
+            Location(
+                id="loc-delete",
+                run_id=run_id,
+                name="Cafe",
+                location_type="cafe",
+                capacity=4,
+            ),
+            Event(
+                id="event-delete",
+                run_id=run_id,
+                tick_no=1,
+                event_type="talk",
+                actor_agent_id="agent-delete-a",
+                target_agent_id="agent-delete-b",
+                location_id="loc-delete",
+                payload={},
+            ),
+            Memory(
+                id="memory-delete",
+                run_id=run_id,
+                agent_id="agent-delete-a",
+                tick_no=1,
+                memory_type="episodic_long",
+                memory_category="long_term",
+                content="Talked with Bob",
+                summary="Talked with Bob",
+                importance=0.9,
+                related_agent_id="agent-delete-b",
+                location_id="loc-delete",
+                metadata_json={},
+            ),
+            Relationship(
+                id="relationship-delete",
+                run_id=run_id,
+                agent_id="agent-delete-a",
+                other_agent_id="agent-delete-b",
+                familiarity=0.3,
+                trust=0.2,
+                affinity=0.4,
+                relation_type="friend",
+            ),
+            DirectorMemory(
+                id="director-memory-delete",
+                run_id=run_id,
+                tick_no=1,
+                scene_goal="gather",
+                target_cast_ids='["agent-delete-b"]',
+                message_hint="Meet now",
+                was_executed=False,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.delete(f"/api/runs/{run_id}")
+
+    assert response.status_code == 200
+    assert response.json() == {"run_id": run_id, "status": "deleted"}
+    assert fake_pool.cleaned_runs == [run_id]
+    assert await db_session.get(SimulationRun, run_id) is None
+    assert await db_session.get(Agent, "agent-delete-a") is None
+    assert await db_session.get(Location, "loc-delete") is None
+    assert await db_session.get(Event, "event-delete") is None
+    assert await db_session.get(Memory, "memory-delete") is None
+    assert await db_session.get(Relationship, "relationship-delete") is None
+    assert await db_session.get(DirectorMemory, "director-memory-delete") is None
+
+
+@pytest.mark.asyncio
+async def test_delete_run_returns_404_for_missing_run_and_still_cleans_runtime_resources(
+    client, monkeypatch: pytest.MonkeyPatch
+):
+    fake_pool = _FakePool()
+    monkeypatch.setattr(connection_pool_module, "get_connection_pool", lambda: _return_async(fake_pool))
+
+    response = await client.delete("/api/runs/00000000-0000-0000-0000-000000000208")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Run not found"
+    assert fake_pool.cleaned_runs == ["00000000-0000-0000-0000-000000000208"]
+
+
+async def _return_async(value):
+    return value

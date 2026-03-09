@@ -106,6 +106,14 @@ async def test_list_agents_returns_run_agents(client, db_session):
 
 
 @pytest.mark.asyncio
+async def test_list_agents_returns_404_when_run_missing(client):
+    response = await client.get("/api/runs/00000000-0000-0000-0000-000000000999/agents")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Run not found"
+
+
+@pytest.mark.asyncio
 async def test_get_agent_returns_generated_tick_memories(client, db_session):
     run_id = "00000000-0000-0000-0000-000000000103"
     run = SimulationRun(id=run_id, name="demo", status="running", current_tick=0, tick_minutes=5)
@@ -199,6 +207,34 @@ async def test_get_agent_returns_404_when_agent_missing(client, db_session):
     await db_session.commit()
 
     response = await client.get(f"/api/runs/{run_id}/agents/missing-agent")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Agent not found"
+
+
+@pytest.mark.asyncio
+async def test_get_agent_returns_404_when_agent_belongs_to_other_run(client, db_session):
+    run_id = "00000000-0000-0000-0000-000000000106"
+    other_run_id = "00000000-0000-0000-0000-000000000107"
+    db_session.add_all(
+        [
+            SimulationRun(id=run_id, name="demo-a", status="running"),
+            SimulationRun(id=other_run_id, name="demo-b", status="running"),
+            Agent(
+                id="cross-run-agent",
+                run_id=other_run_id,
+                name="Alice",
+                occupation="resident",
+                personality={},
+                profile={},
+                status={},
+                current_plan={},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.get(f"/api/runs/{run_id}/agents/cross-run-agent")
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Agent not found"

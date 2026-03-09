@@ -37,6 +37,9 @@ packages = ["app"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 asyncio_mode = "auto"
+markers = [
+    "integration: tests that hit real external services or long-running environments",
+]
 
 [tool.ruff]
 target-version = "py312"

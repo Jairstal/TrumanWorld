@@ -29,9 +29,43 @@ from claude_agent_sdk import (
     query,
 )
 
+LIVE_SDK_TESTS_ENABLED = os.getenv("TRUMANWORLD_RUN_LIVE_SDK_TESTS") == "1"
+LIVE_SDK_SKIP_REASON = "设置 TRUMANWORLD_RUN_LIVE_SDK_TESTS=1 后才运行真实 SDK 集成测试"
+NETWORK_TIMEOUT_SECONDS = 20
+
+
+async def collect_query_messages(prompt: str, options: ClaudeAgentOptions) -> list[str]:
+    response_text: list[str] = []
+
+    async def _collect() -> None:
+        async for message in query(prompt=prompt, options=options):
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if hasattr(block, "text"):
+                        response_text.append(block.text)
+
+    await asyncio.wait_for(_collect(), timeout=NETWORK_TIMEOUT_SECONDS)
+    return response_text
+
+
+async def collect_client_messages(client: ClaudeSDKClient) -> list[str]:
+    response_text: list[str] = []
+
+    async def _collect() -> None:
+        async for message in client.receive_response():
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if hasattr(block, "text"):
+                        response_text.append(block.text)
+            elif isinstance(message, ResultMessage):
+                break
+
+    await asyncio.wait_for(_collect(), timeout=NETWORK_TIMEOUT_SECONDS)
+    return response_text
+
 
 @dataclass
-class TestResult:
+class QueryTestResult:
     """测试结果"""
 
     method: str
@@ -42,7 +76,7 @@ class TestResult:
     response_preview: str | None = None
 
 
-async def run_query_test(num_queries: int = 3) -> list[TestResult]:
+async def run_query_test(num_queries: int = 3) -> list[QueryTestResult]:
     """测试 query() 方式 - 每次新建连接"""
     results = []
 
@@ -55,21 +89,14 @@ async def run_query_test(num_queries: int = 3) -> list[TestResult]:
     for i in range(num_queries):
         start = time.time()
         try:
-            response_text = []
-            async for message in query(
+            response_text = await collect_query_messages(
                 prompt=f"请只回复一个数字：{i + 1}",
                 options=options,
-            ):
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if hasattr(block, "text"):
-                            response_text.append(block.text)
-                elif isinstance(message, ResultMessage):
-                    pass  # 完成
+            )
 
             elapsed = time.time() - start
             results.append(
-                TestResult(
+                QueryTestResult(
                     method="query",
                     query_no=i + 1,
                     success=True,
@@ -80,7 +107,7 @@ async def run_query_test(num_queries: int = 3) -> list[TestResult]:
         except Exception as e:
             elapsed = time.time() - start
             results.append(
-                TestResult(
+                QueryTestResult(
                     method="query",
                     query_no=i + 1,
                     success=False,
@@ -92,7 +119,7 @@ async def run_query_test(num_queries: int = 3) -> list[TestResult]:
     return results
 
 
-async def run_client_test(num_queries: int = 3) -> list[TestResult]:
+async def run_client_test(num_queries: int = 3) -> list[QueryTestResult]:
     """测试 ClaudeSDKClient 方式 - 复用连接"""
     results = []
 
@@ -107,7 +134,7 @@ async def run_client_test(num_queries: int = 3) -> list[TestResult]:
     client = ClaudeSDKClient(options=options)
 
     try:
-        await client.connect()
+        await asyncio.wait_for(client.connect(), timeout=NETWORK_TIMEOUT_SECONDS)
         connect_time = time.time() - connect_start
         print(f"[CLIENT] 连接耗时: {connect_time:.2f}s")
 
@@ -116,21 +143,17 @@ async def run_client_test(num_queries: int = 3) -> list[TestResult]:
             start = time.time()
             try:
                 # 发送查询
-                await client.query(f"请只回复一个数字：{i + 1}")
+                await asyncio.wait_for(
+                    client.query(f"请只回复一个数字：{i + 1}"),
+                    timeout=NETWORK_TIMEOUT_SECONDS,
+                )
 
                 # 接收响应
-                response_text = []
-                async for message in client.receive_response():
-                    if isinstance(message, AssistantMessage):
-                        for block in message.content:
-                            if hasattr(block, "text"):
-                                response_text.append(block.text)
-                    elif isinstance(message, ResultMessage):
-                        break  # 收到结果即结束
+                response_text = await collect_client_messages(client)
 
                 elapsed = time.time() - start
                 results.append(
-                    TestResult(
+                    QueryTestResult(
                         method="client",
                         query_no=i + 1,
                         success=True,
@@ -142,7 +165,7 @@ async def run_client_test(num_queries: int = 3) -> list[TestResult]:
             except Exception as e:
                 elapsed = time.time() - start
                 results.append(
-                    TestResult(
+                    QueryTestResult(
                         method="client",
                         query_no=i + 1,
                         success=False,
@@ -153,7 +176,7 @@ async def run_client_test(num_queries: int = 3) -> list[TestResult]:
 
     except Exception as e:
         results.append(
-            TestResult(
+            QueryTestResult(
                 method="client",
                 query_no=0,
                 success=False,
@@ -178,7 +201,7 @@ async def run_concurrent_client_test(
         "errors": [],
     }
 
-    async def run_single_client(client_id: int) -> list[TestResult]:
+    async def run_single_client(client_id: int) -> list[QueryTestResult]:
         """单个客户端的测试"""
         client_results = []
 
@@ -191,26 +214,22 @@ async def run_concurrent_client_test(
         client = ClaudeSDKClient(options=options)
         try:
             connect_start = time.time()
-            await client.connect()
+            await asyncio.wait_for(client.connect(), timeout=NETWORK_TIMEOUT_SECONDS)
             connect_time = time.time() - connect_start
             print(f"[CLIENT-{client_id}] 连接耗时: {connect_time:.2f}s")
 
             for i in range(queries_per_client):
                 start = time.time()
                 try:
-                    await client.query(f"Client {client_id}, Query {i + 1}: 回复一个数字")
-                    response_text = []
-                    async for message in client.receive_response():
-                        if isinstance(message, AssistantMessage):
-                            for block in message.content:
-                                if hasattr(block, "text"):
-                                    response_text.append(block.text)
-                        elif isinstance(message, ResultMessage):
-                            break
+                    await asyncio.wait_for(
+                        client.query(f"Client {client_id}, Query {i + 1}: 回复一个数字"),
+                        timeout=NETWORK_TIMEOUT_SECONDS,
+                    )
+                    response_text = await collect_client_messages(client)
 
                     elapsed = time.time() - start
                     client_results.append(
-                        TestResult(
+                        QueryTestResult(
                             method=f"client-{client_id}",
                             query_no=i + 1,
                             success=True,
@@ -221,7 +240,7 @@ async def run_concurrent_client_test(
                 except Exception as e:
                     elapsed = time.time() - start
                     client_results.append(
-                        TestResult(
+                        QueryTestResult(
                             method=f"client-{client_id}",
                             query_no=i + 1,
                             success=False,
@@ -232,7 +251,7 @@ async def run_concurrent_client_test(
 
         except Exception as e:
             client_results.append(
-                TestResult(
+                QueryTestResult(
                     method=f"client-{client_id}",
                     query_no=0,
                     success=False,
@@ -260,7 +279,7 @@ async def run_concurrent_client_test(
     return results
 
 
-async def test_long_running_client() -> dict[str, Any]:
+async def run_long_running_client_test() -> dict[str, Any]:
     """测试长时间运行的客户端稳定性"""
     results = {
         "queries": [],
@@ -277,22 +296,18 @@ async def test_long_running_client() -> dict[str, Any]:
     client = ClaudeSDKClient(options=options)
 
     try:
-        await client.connect()
+        await asyncio.wait_for(client.connect(), timeout=NETWORK_TIMEOUT_SECONDS)
         print("[LONG-RUN] 客户端已连接")
 
         # 进行 10 次查询，每次间隔 1 秒
         for i in range(10):
             start = time.time()
             try:
-                await client.query(f"查询 {i + 1}/10: 回复 OK")
-                response_text = []
-                async for message in client.receive_response():
-                    if isinstance(message, AssistantMessage):
-                        for block in message.content:
-                            if hasattr(block, "text"):
-                                response_text.append(block.text)
-                    elif isinstance(message, ResultMessage):
-                        break
+                await asyncio.wait_for(
+                    client.query(f"查询 {i + 1}/10: 回复 OK"),
+                    timeout=NETWORK_TIMEOUT_SECONDS,
+                )
+                response_text = await collect_client_messages(client)
 
                 elapsed = time.time() - start
                 results["queries"].append(
@@ -324,7 +339,7 @@ async def test_long_running_client() -> dict[str, Any]:
                 # 尝试重连
                 try:
                     await client.disconnect()
-                    await client.connect()
+                    await asyncio.wait_for(client.connect(), timeout=NETWORK_TIMEOUT_SECONDS)
                     results["disconnects"] += 1
                     print("[LONG-RUN] 已重连")
                 except Exception as reconnect_error:
@@ -346,11 +361,8 @@ async def test_long_running_client() -> dict[str, Any]:
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(
-    not os.getenv("TRUMANWORLD_ANTHROPIC_API_KEY")
-    or os.getenv("TRUMANWORLD_ANTHROPIC_API_KEY") == "test-key",
-    reason="需要有效的 Anthropic API Key 才能运行",
-)
+@pytest.mark.integration
+@pytest.mark.skipif(not LIVE_SDK_TESTS_ENABLED, reason=LIVE_SDK_SKIP_REASON)
 async def test_query_latency():
     """测试 query() 的延迟"""
     print("\n=== 测试 query() 延迟 ===")
@@ -367,6 +379,8 @@ async def test_query_latency():
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.skipif(not LIVE_SDK_TESTS_ENABLED, reason=LIVE_SDK_SKIP_REASON)
 async def test_client_latency():
     """测试 ClaudeSDKClient 的延迟"""
     print("\n=== 测试 ClaudeSDKClient 延迟 ===")
@@ -383,6 +397,8 @@ async def test_client_latency():
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.skipif(not LIVE_SDK_TESTS_ENABLED, reason=LIVE_SDK_SKIP_REASON)
 async def test_compare_latency():
     """对比两种方式的延迟"""
     print("\n=== 延迟对比测试 ===")
@@ -408,6 +424,8 @@ async def test_compare_latency():
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.skipif(not LIVE_SDK_TESTS_ENABLED, reason=LIVE_SDK_SKIP_REASON)
 async def test_concurrent_clients():
     """测试并发客户端"""
     print("\n=== 并发客户端测试 ===")
@@ -427,10 +445,12 @@ async def test_concurrent_clients():
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.skipif(not LIVE_SDK_TESTS_ENABLED, reason=LIVE_SDK_SKIP_REASON)
 async def test_long_running_stability():
     """测试长时间运行稳定性"""
     print("\n=== 长时间运行稳定性测试 ===")
-    results = await test_long_running_client()
+    results = await run_long_running_client_test()
 
     print(f"\n  查询次数: {len(results['queries'])}")
     print(f"  重连次数: {results['disconnects']}")

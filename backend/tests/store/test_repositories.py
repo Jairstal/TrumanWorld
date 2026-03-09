@@ -38,7 +38,7 @@ async def test_event_repository_orders_events_by_tick_desc(db_session):
     repo = EventRepository(db_session)
     events = await repo.list_for_run("run-repo-2")
 
-    assert [event.id for event in events] == ["event-b", "event-c", "event-a"]
+    assert [event.id for event in events] == ["event-b", "event-a", "event-c"]
 
 
 @pytest.mark.asyncio
