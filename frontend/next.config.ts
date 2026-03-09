@@ -6,6 +6,7 @@ const backendUrl = process.env.INTERNAL_API_BASE_URL?.replace(/\/api\/?$/, "") ?
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, ".."),
+  allowedDevOrigins: ["10.10.11.169"],
   async rewrites() {
     return [
       {

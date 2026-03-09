@@ -715,9 +715,12 @@ async def get_director_memories(
 def _build_health_metrics_config() -> WorldHealthMetricsConfig:
     """Load health metrics evaluation baselines from world_config.yml."""
     try:
-        cfg = load_world_config().get("health_metrics", {})
+        world_cfg = load_world_config()
+        cfg = world_cfg.get("health_metrics", {})
         cont = cfg.get("continuity", {})
         soc = cfg.get("social", {})
+        heat = world_cfg.get("location_heat", {})
+        thresholds = heat.get("thresholds", {})
         return WorldHealthMetricsConfig(
             continuity_penalty_factor=cont.get("penalty_factor", 200.0),
             continuity_warning_threshold=cont.get("warning_threshold", 0.2),
@@ -726,6 +729,11 @@ def _build_health_metrics_config() -> WorldHealthMetricsConfig:
             social_baseline_talks_per_person_per_day=soc.get("baseline_talks_per_person_per_day", 20.0),
             social_trend_up_threshold=soc.get("trend_up_threshold", 10.0),
             social_trend_stable_threshold=soc.get("trend_stable_threshold", 3.0),
+            heat_normalization_baseline=heat.get("normalization_baseline", 30.0),
+            heat_threshold_very_active=thresholds.get("very_active", 0.7),
+            heat_threshold_active=thresholds.get("active", 0.4),
+            heat_threshold_mild=thresholds.get("mild", 0.15),
+            heat_glow_threshold=heat.get("glow_threshold", 0.1),
         )
     except Exception:
         return WorldHealthMetricsConfig()

@@ -136,6 +136,12 @@ export type WorldSnapshot = {
     social_baseline_talks_per_person_per_day: number;
     social_trend_up_threshold: number;
     social_trend_stable_threshold: number;
+    // Location heat display
+    heat_normalization_baseline: number;
+    heat_threshold_very_active: number;
+    heat_threshold_active: number;
+    heat_threshold_mild: number;
+    heat_glow_threshold: number;
   };
 };
 

@@ -198,6 +198,12 @@ class WorldHealthMetricsConfig(BaseModel):
     social_baseline_talks_per_person_per_day: float = 20.0
     social_trend_up_threshold: float = 10.0
     social_trend_stable_threshold: float = 3.0
+    # Location heat display
+    heat_normalization_baseline: float = 30.0
+    heat_threshold_very_active: float = 0.7
+    heat_threshold_active: float = 0.4
+    heat_threshold_mild: float = 0.15
+    heat_glow_threshold: float = 0.1
 
 
 class DirectorMemoryResponse(BaseModel):

@@ -199,3 +199,37 @@ health_metrics:
     baseline_talks_per_person_per_day: 30  # 达到此值即为100%
     trend_up_threshold: 10     # 每人每天超过此值趋势为上升
     trend_stable_threshold: 3  # 每人每天超过此值趋势为稳定（否则下降）
+
+# =============================================================================
+# 地点热度配置（地图活跃度显示）
+# =============================================================================
+location_heat:
+  # 事件权重：不同事件类型对热度的贡献
+  event_weights:
+    talk: 1.5
+    work: 1.0
+    move: 0.6
+    rest: 0.4
+    plan: 0.5
+    reflect: 0.5
+    director_inject: 2.0
+    director_broadcast: 2.0
+    director_activity: 2.0
+    director_shutdown: 2.0
+    director_weather_change: 2.0
+
+  # 归一化基准：达到此加权总分视为热度 1.0（满热度）
+  # 增大此值可降低大多数地点的热度，使"非常活跃"更难达到
+  # recent_events 最多 120 条，单一地点平均约 15-20 条
+  # 平均每条加权约 1.0，15条 → 15分，基准设为 30 较合理
+  normalization_baseline: 30
+
+  # 热度等级阈值（0-1 之间，越高越难触发）
+  thresholds:
+    very_active: 0.7   # >= 此值显示"非常活跃"（红色）
+    active: 0.4        # >= 此值显示"较活跃"（橙色）
+    mild: 0.15         # >= 此值显示"一般"（绿色）
+                       # < mild 显示"安静"（灰色）
+
+  # 显示阈值：低于此值不显示热度光晕效果
+  glow_threshold: 0.1

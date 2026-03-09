@@ -285,12 +285,24 @@ export function tickToSimTime(
 }
 
 /**
+ * 热度配置参数
+ */
+export interface LocationHeatConfig {
+  normalizationBaseline?: number;
+  thresholdVeryActive?: number;
+  thresholdActive?: number;
+  thresholdMild?: number;
+  glowThreshold?: number;
+}
+
+/**
  * 计算地点的活动热度 (0-1)
  * 基于近期事件数量、重要性和事件类型权重
  */
 export function calculateLocationHeat(
   locationId: string,
   events: WorldSnapshot["recent_events"],
+  config?: LocationHeatConfig,
 ): number {
   // 事件类型权重
   const eventWeights: Record<string, number> = {
@@ -321,8 +333,9 @@ export function calculateLocationHeat(
     heat += baseWeight * importanceMultiplier;
   }
 
-  // 归一化：假设最大热度为 10（约 5-7 个加权事件）
-  const normalizedHeat = Math.min(heat / 10, 1);
+  // 归一化：用配置基准（默认 30），约 15-20 条加权事件达到满热度
+  const baseline = config?.normalizationBaseline ?? 30;
+  const normalizedHeat = Math.min(heat / baseline, 1);
 
   return normalizedHeat;
 }
@@ -330,13 +343,17 @@ export function calculateLocationHeat(
 /**
  * 热度等级配置
  */
-export function getHeatLevel(heat: number): {
+export function getHeatLevel(heat: number, config?: LocationHeatConfig): {
   level: string;
   color: string;
   glowColor: string;
   label: string;
 } {
-  if (heat >= 0.8) {
+  const thVeryActive = config?.thresholdVeryActive ?? 0.7;
+  const thActive = config?.thresholdActive ?? 0.4;
+  const thMild = config?.thresholdMild ?? 0.15;
+
+  if (heat >= thVeryActive) {
     return {
       level: "hot",
       color: "#ef4444",
@@ -344,7 +361,7 @@ export function getHeatLevel(heat: number): {
       label: "非常活跃",
     };
   }
-  if (heat >= 0.5) {
+  if (heat >= thActive) {
     return {
       level: "warm",
       color: "#f59e0b",
@@ -352,7 +369,7 @@ export function getHeatLevel(heat: number): {
       label: "较活跃",
     };
   }
-  if (heat >= 0.25) {
+  if (heat >= thMild) {
     return {
       level: "mild",
       color: "#22c55e",

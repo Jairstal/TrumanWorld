@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type 
 import { AnimatePresence, motion } from "framer-motion";
 import { EVENT_MOVE } from "@/lib/simulation-protocol";
 import type { AgentSummary, WorldSnapshot } from "@/lib/types";
-import { calculateLocationHeat, getHeatLevel, getTimeOfDay, getTimeOfDayStyle, simDayLabel } from "@/lib/world-utils";
+import { calculateLocationHeat, getHeatLevel, getTimeOfDay, getTimeOfDayStyle, simDayLabel, type LocationHeatConfig } from "@/lib/world-utils";
 
 interface LocationNode {
   id: string;
@@ -102,6 +102,15 @@ function clampViewBox(next: ViewBox): ViewBox {
 }
 
 function buildMapData(world: WorldSnapshot) {
+  const hmc = world.health_metrics_config;
+  const heatConfig: LocationHeatConfig | undefined = hmc ? {
+    normalizationBaseline: hmc.heat_normalization_baseline,
+    thresholdVeryActive: hmc.heat_threshold_very_active,
+    thresholdActive: hmc.heat_threshold_active,
+    thresholdMild: hmc.heat_threshold_mild,
+    glowThreshold: hmc.heat_glow_threshold,
+  } : undefined;
+
   const rawNodes: LocationNode[] = world.locations.map((location) => ({
     id: location.id,
     name: location.name,
@@ -111,7 +120,7 @@ function buildMapData(world: WorldSnapshot) {
     capacity: location.capacity,
     occupantCount: location.occupants.length,
     occupants: location.occupants,
-    heat: calculateLocationHeat(location.id, world.recent_events),
+    heat: calculateLocationHeat(location.id, world.recent_events, heatConfig),
   }));
 
   const xValues = rawNodes.map((node) => node.x);
@@ -198,7 +207,7 @@ function buildMapData(world: WorldSnapshot) {
   const coastY = Math.min(maxSvgY + 65, SVG_H - 15);
   const coastPath = `M -20 ${coastY + 25} C 160 ${coastY - 10} 360 ${coastY + 40} 560 ${coastY - 5} S 720 ${coastY + 15} 740 ${coastY}`;
 
-  return { nodes, links, movePaths, mainRoadPath, coastPath };
+  return { nodes, links, movePaths, mainRoadPath, coastPath, heatConfig };
 }
 
 export function TownMap({
@@ -218,7 +227,7 @@ export function TownMap({
     originY: number;
   } | null>(null);
 
-  const { nodes, links, movePaths, mainRoadPath, coastPath } = useMemo(() => buildMapData(world), [world]);
+  const { nodes, links, movePaths, mainRoadPath, coastPath, heatConfig } = useMemo(() => buildMapData(world), [world]);
 
   // 昼夜循环效果
   const hour = world.world_clock?.hour ?? 12;
@@ -542,8 +551,9 @@ export function TownMap({
             const style = LOCATION_STYLES[node.type] ?? LOCATION_STYLES.default;
             const isHighlighted = node.id === highlightedLocationId;
             const outerRadius = (32 + node.capacity * 2.5) * NODE_SCALE;
-            const heatLevel = getHeatLevel(node.heat);
-            const hasHeat = node.heat > 0.15;
+            const heatLevel = getHeatLevel(node.heat, heatConfig);
+            const glowThreshold = heatConfig?.glowThreshold ?? 0.1;
+            const hasHeat = node.heat > glowThreshold;
 
             return (
               <motion.g
