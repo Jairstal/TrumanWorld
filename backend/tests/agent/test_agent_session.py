@@ -8,7 +8,7 @@ import pytest
 
 import app.agent.providers as provider_module
 from app.agent.providers import ClaudeSDKDecisionProvider
-from app.agent.runtime import RuntimeInvocation
+from app.agent.runtime import RuntimeContext, RuntimeInvocation
 from app.infra.settings import get_settings
 
 
@@ -305,3 +305,133 @@ async def test_provider_auto_resumes_from_pool_session(monkeypatch: pytest.Monke
     assert options.resume == "saved-session-xyz"
 
     get_settings.cache_clear()
+
+
+# ============================================================
+# Token Usage / on_llm_call Callback Tests
+# ============================================================
+
+
+@pytest.mark.asyncio
+async def test_claude_provider_triggers_on_llm_call_callback_with_usage(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """验证 _decide_with_query 路径在收到 ResultMessage 后调用 on_llm_call 回调，
+    并正确传递 usage、total_cost_usd 和 duration_ms。
+    """
+    monkeypatch.setenv("TRUMANWORLD_AGENT_PROVIDER", "claude")
+    get_settings.cache_clear()
+    monkeypatch.setattr(provider_module.shutil, "which", lambda _: "/usr/bin/claude")
+
+    fake_usage = {"input_tokens": 120, "output_tokens": 250, "cache_read_input_tokens": 500}
+
+    async def fake_query(*args, **kwargs):
+        yield provider_module.ResultMessage(
+            subtype="result",
+            duration_ms=1234,
+            duration_api_ms=1000,
+            is_error=False,
+            num_turns=1,
+            session_id="session-usage-test",
+            result='{"action_type":"rest"}',
+            usage=fake_usage,
+            total_cost_usd=0.042,
+        )
+
+    monkeypatch.setattr(provider_module, "query", fake_query)
+
+    captured_calls: list[dict] = []
+
+    def on_llm_call(agent_id, task_type, usage, total_cost_usd, duration_ms):
+        captured_calls.append(
+            {
+                "task_type": task_type,
+                "usage": usage,
+                "total_cost_usd": total_cost_usd,
+                "duration_ms": duration_ms,
+            }
+        )
+
+    runtime_ctx = RuntimeContext(on_llm_call=on_llm_call)
+    provider = ClaudeSDKDecisionProvider(get_settings())
+    invocation = RuntimeInvocation(
+        agent_id="alice",
+        task="reactor",
+        prompt="test",
+        context={},
+        max_turns=1,
+        max_budget_usd=0.1,
+    )
+
+    result = await provider.decide(invocation, runtime_ctx=runtime_ctx)
+
+    assert result.action_type == "rest"
+    assert len(captured_calls) == 1
+    call = captured_calls[0]
+    assert call["task_type"] == "reactor"
+    assert call["usage"] == fake_usage
+    assert call["total_cost_usd"] == pytest.approx(0.042)
+    assert call["duration_ms"] == 1234
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_claude_provider_does_not_call_callback_when_no_runtime_ctx(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """验证没有 runtime_ctx 时不触发回调，决策正常返回。"""
+    monkeypatch.setenv("TRUMANWORLD_AGENT_PROVIDER", "claude")
+    get_settings.cache_clear()
+    monkeypatch.setattr(provider_module.shutil, "which", lambda _: "/usr/bin/claude")
+
+    async def fake_query(*args, **kwargs):
+        yield provider_module.ResultMessage(
+            subtype="result",
+            duration_ms=100,
+            duration_api_ms=80,
+            is_error=False,
+            num_turns=1,
+            session_id="session-no-ctx",
+            result='{"action_type":"move","target_location_id":"park"}',
+            usage={"input_tokens": 50, "output_tokens": 30},
+            total_cost_usd=0.005,
+        )
+
+    monkeypatch.setattr(provider_module, "query", fake_query)
+
+    provider = ClaudeSDKDecisionProvider(get_settings())
+    invocation = RuntimeInvocation(
+        agent_id="alice",
+        task="reactor",
+        prompt="test",
+        context={},
+        max_turns=1,
+        max_budget_usd=0.1,
+    )
+
+    # 不传 runtime_ctx，不应抛出异常
+    result = await provider.decide(invocation, runtime_ctx=None)
+    assert result.action_type == "move"
+    assert result.target_location_id == "park"
+
+    get_settings.cache_clear()
+
+
+def test_runtime_context_on_llm_call_field_defaults_to_none():
+    """验证 RuntimeContext.on_llm_call 默认为 None。"""
+    ctx = RuntimeContext()
+    assert ctx.on_llm_call is None
+
+
+def test_runtime_context_on_llm_call_can_be_set():
+    """验证 RuntimeContext.on_llm_call 可以设置为回调函数。"""
+    callback_called = []
+
+    def my_callback(*args, **kwargs):
+        callback_called.append(True)
+
+    ctx = RuntimeContext(on_llm_call=my_callback)
+    assert ctx.on_llm_call is my_callback
+    ctx.on_llm_call("agent", "task", {}, 0.01, 100)
+    assert len(callback_called) == 1

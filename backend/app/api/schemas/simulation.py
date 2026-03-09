@@ -185,6 +185,11 @@ class WorldDailyStatsResponse(BaseModel):
     talk_count: int = 0
     move_count: int = 0
     rejection_count: int = 0
+    # Token 消耗统计（全量历史累计）
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_cache_read_tokens: int = 0
+    total_cache_creation_tokens: int = 0
 
 
 class WorldHealthMetricsConfig(BaseModel):

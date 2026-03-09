@@ -150,7 +150,16 @@ export function eventMatchesFilter(event: WorldEvent, filter: EventFilter) {
   return event.event_type === EVENT_WORK || event.event_type === EVENT_REST;
 }
 
-export function locationBeat(locationId: string, events: WorldSnapshot["recent_events"]): LocationBeat {
+export function locationBeat(
+  locationId: string,
+  events: WorldSnapshot["recent_events"],
+  locations?: WorldSnapshot["locations"],
+): LocationBeat {
+  // 如果地点当前没有人，直接返回 quiet，不依赖历史事件
+  if (locations) {
+    const loc = locations.find((l) => l.id === locationId);
+    if (loc && loc.occupants.length === 0) return "quiet";
+  }
   const latest = events.find((event) => event.location_id === locationId);
   if (!latest) return "quiet";
   if (latest.event_type === EVENT_TALK) return "conversation";

@@ -48,10 +48,12 @@ from app.store.repositories import (
     AgentRepository,
     DirectorMemoryRepository,
     EventRepository,
+    LlmCallRepository,
     LocationRepository,
     RunRepository,
 )
 from app.store.models import Agent, SimulationRun
+from app.store.models import LlmCall
 
 if TYPE_CHECKING:
     from app.infra.db import async_engine
@@ -194,7 +196,9 @@ class SimulationService:
 
         # Phase 2: Prepare intents (SDK calls happen here, no active session)
         if not intents:
-            intents = await self._prepare_intents_from_data(world, agent_data, engine, run_id)
+            intents, llm_records = await self._prepare_intents_from_data(world, agent_data, engine, run_id, current_tick)
+        else:
+            llm_records = []
 
         # Run simulation logic
         runner = SimulationRunner(world)
@@ -210,6 +214,18 @@ class SimulationService:
             await self._scenario.with_session(write_session).update_state_from_events(
                 run_id, persisted_events
             )
+            # Persist LLM call records (独立 session，失败不影响主流程)
+        if llm_records and engine is not None:
+            from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
+            from app.infra.logging import get_logger as _get_logger
+            _logger = _get_logger(__name__)
+            try:
+                async with _AsyncSession(engine, expire_on_commit=False) as llm_session:
+                    for record in llm_records:
+                        llm_session.add(record)
+                    await llm_session.commit()
+            except Exception as exc:
+                _logger.warning(f"Failed to persist llm_calls for run {run_id}: {exc}")
 
         return result
 
@@ -219,6 +235,7 @@ class SimulationService:
         agent_data: list[AgentDecisionSnapshot],
         engine: "async_engine | None" = None,
         run_id: str | None = None,
+        tick_no: int = 0,
     ) -> list[ActionIntent]:
         """Prepare intents from pre-loaded agent data.
 
@@ -229,6 +246,10 @@ class SimulationService:
         Memory tools are available via MCP if engine is provided.
         """
         from app.agent.runtime import RuntimeContext
+        from uuid import uuid4
+
+        # Collect LLM call records in a thread-safe list
+        llm_records: list[LlmCall] = []
 
         async def decide_for_agent(agent_snapshot: AgentDecisionSnapshot) -> ActionIntent | None:
             agent_id = agent_snapshot.id
@@ -243,10 +264,36 @@ class SimulationService:
             # Build runtime context with memory tools support
             runtime_ctx = None
             if engine is not None and run_id is not None:
+                # 捕获真实 DB agent id（UUID），避免被回调参数遮蔽
+                db_agent_id = agent_snapshot.id
+
+                def on_llm_call(
+                    agent_id: str,
+                    task_type: str,
+                    usage: dict | None,
+                    total_cost_usd: float | None,
+                    duration_ms: int,
+                ) -> None:
+                    record = LlmCall(
+                        id=str(uuid4()),
+                        run_id=run_id,
+                        agent_id=db_agent_id,  # 使用真实 UUID，满足外键约束
+                        task_type=task_type,
+                        tick_no=tick_no,
+                        input_tokens=int((usage or {}).get("input_tokens", 0)),
+                        output_tokens=int((usage or {}).get("output_tokens", 0)),
+                        cache_read_tokens=int((usage or {}).get("cache_read_input_tokens", 0)),
+                        cache_creation_tokens=int((usage or {}).get("cache_creation_input_tokens", 0)),
+                        total_cost_usd=total_cost_usd,
+                        duration_ms=duration_ms or 0,
+                    )
+                    llm_records.append(record)
+
                 runtime_ctx = RuntimeContext(
                     db_engine=engine,
                     run_id=run_id,
                     enable_memory_tools=True,
+                    on_llm_call=on_llm_call,
                 )
 
             # Extract workplace_location_id from profile
@@ -274,7 +321,7 @@ class SimulationService:
 
         # Filter out None results (agents without valid state)
         intents = [r for r in results if r is not None]
-        return intents
+        return intents, llm_records
 
     async def _persist_tick_events(self, run_id: str, result: TickResult) -> None:
         """Persist tick events and related data."""

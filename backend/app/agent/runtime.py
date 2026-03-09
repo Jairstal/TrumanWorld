@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -51,6 +52,8 @@ class RuntimeContext:
     db_engine: "AsyncEngine | None" = None
     run_id: str | None = None
     enable_memory_tools: bool = True
+    # LLM 调用回调：(agent_id, task_type, usage, total_cost_usd, duration_ms) -> None
+    on_llm_call: Callable[..., None] | None = field(default=None)
 
 
 class AgentRuntime:

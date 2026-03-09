@@ -14,6 +14,7 @@ from app.store.models import (
     DirectorMemory,
     Event,
     Location,
+    LlmCall,
     Memory,
     Relationship,
     SimulationRun,
@@ -636,3 +637,37 @@ class DirectorMemoryRepository:
         )
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+
+class LlmCallRepository:
+    """LLM 调用记录的持久化操作。"""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def create(self, record: LlmCall) -> None:
+        self.session.add(record)
+        await self.session.commit()
+
+    async def get_token_totals(self, run_id: str) -> dict[str, int]:
+        """查询指定 run 的全量 token 累计。
+
+        Returns:
+            包含 input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens 的字典
+        """
+        from sqlalchemy import func as sql_func
+
+        stmt = select(
+            sql_func.coalesce(sql_func.sum(LlmCall.input_tokens), 0).label("input_tokens"),
+            sql_func.coalesce(sql_func.sum(LlmCall.output_tokens), 0).label("output_tokens"),
+            sql_func.coalesce(sql_func.sum(LlmCall.cache_read_tokens), 0).label("cache_read_tokens"),
+            sql_func.coalesce(sql_func.sum(LlmCall.cache_creation_tokens), 0).label("cache_creation_tokens"),
+        ).where(LlmCall.run_id == run_id)
+        result = await self.session.execute(stmt)
+        row = result.one()
+        return {
+            "input_tokens": row.input_tokens,
+            "output_tokens": row.output_tokens,
+            "cache_read_tokens": row.cache_read_tokens,
+            "cache_creation_tokens": row.cache_creation_tokens,
+        }

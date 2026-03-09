@@ -41,6 +41,7 @@ from app.store.repositories import (
     AgentRepository,
     DirectorMemoryRepository,
     EventRepository,
+    LlmCallRepository,
     LocationRepository,
     RunRepository,
 )
@@ -766,6 +767,7 @@ async def get_world_snapshot(
     location_repo = LocationRepository(session)
     event_repo = EventRepository(session)
     director_memory_repo = DirectorMemoryRepository(session)
+    llm_call_repo = LlmCallRepository(session)
 
     agents = await agent_repo.list_for_run(str(run_id))
     locations = await location_repo.list_for_run(str(run_id))
@@ -861,6 +863,8 @@ async def get_world_snapshot(
         tick_to=None,    # No tick_to limit - get all events up to now
         event_types=["talk", "move", "move_rejected", "talk_rejected"],
     )
+    # Get all-time token consumption totals
+    token_totals = await llm_call_repo.get_token_totals(str(run_id))
 
     return WorldSnapshotResponse(
         run=WorldSnapshotRunResponse(
@@ -910,6 +914,10 @@ async def get_world_snapshot(
             talk_count=all_time_event_counts.get("talk", 0),
             move_count=all_time_event_counts.get("move", 0),
             rejection_count=all_time_event_counts.get("move_rejected", 0) + all_time_event_counts.get("talk_rejected", 0),
+            total_input_tokens=token_totals.get("input_tokens", 0),
+            total_output_tokens=token_totals.get("output_tokens", 0),
+            total_cache_read_tokens=token_totals.get("cache_read_tokens", 0),
+            total_cache_creation_tokens=token_totals.get("cache_creation_tokens", 0),
         ),
         health_metrics_config=_build_health_metrics_config(),
     )
@@ -993,9 +1001,9 @@ async def delete_run(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
 
     # Delete related data in correct order (respecting foreign key constraints)
-    # Order: relationships -> memories -> director_memories -> events -> agents -> locations -> run
+    # Order: relationships -> memories -> director_memories -> events -> llm_calls -> agents -> locations -> run
     from sqlalchemy import delete
-    from app.store.models import Agent, DirectorMemory, Event, Location, Memory, Relationship
+    from app.store.models import Agent, DirectorMemory, Event, Location, Memory, Relationship, LlmCall
 
     run_id_str = str(run_id)
 
@@ -1010,6 +1018,9 @@ async def delete_run(
 
     # Delete events (references agents, locations)
     await session.execute(delete(Event).where(Event.run_id == run_id_str))
+
+    # Delete llm_calls (references agents)
+    await session.execute(delete(LlmCall).where(LlmCall.run_id == run_id_str))
 
     # Delete agents (references locations)
     await session.execute(delete(Agent).where(Agent.run_id == run_id_str))

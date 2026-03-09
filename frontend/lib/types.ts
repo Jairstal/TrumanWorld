@@ -127,6 +127,10 @@ export type WorldSnapshot = {
     talk_count: number;
     move_count: number;
     rejection_count: number;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_cache_read_tokens: number;
+    total_cache_creation_tokens: number;
   };
   health_metrics_config?: {
     continuity_penalty_factor: number;

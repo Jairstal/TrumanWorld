@@ -314,6 +314,15 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
                     if message.is_error:
                         msg = message.result or "Claude SDK decision failed"
                         raise RuntimeError(msg)
+                    # 记录 token 消耗
+                    if runtime_ctx and runtime_ctx.on_llm_call:
+                        runtime_ctx.on_llm_call(
+                            agent_id=invocation.agent_id,
+                            task_type=invocation.task,
+                            usage=message.usage,
+                            total_cost_usd=message.total_cost_usd,
+                            duration_ms=message.duration_ms,
+                        )
 
             if result_decision is None:
                 msg = "Claude SDK returned no decision"
@@ -370,6 +379,15 @@ class ClaudeSDKDecisionProvider(AgentDecisionProvider):
                     if message.is_error:
                         msg = message.result or "Claude SDK decision failed"
                         raise RuntimeError(msg)
+                    # 记录 token 消耗
+                    if runtime_ctx and runtime_ctx.on_llm_call:
+                        runtime_ctx.on_llm_call(
+                            agent_id=invocation.agent_id,
+                            task_type=invocation.task,
+                            usage=message.usage,
+                            total_cost_usd=message.total_cost_usd,
+                            duration_ms=message.duration_ms,
+                        )
                     # Parse JSON from text response
                     if message.result:
                         text = message.result.strip()

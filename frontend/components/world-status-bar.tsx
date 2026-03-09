@@ -176,6 +176,32 @@ export function WorldStatusBar() {
           : `模拟时间 ${formatSimTime(world)}`}
       </span>
 
+      {/* Token 消耗统计 */}
+      {(() => {
+        const stats = world.daily_stats;
+        if (!stats) return null;
+        const totalTokens =
+          (stats.total_input_tokens ?? 0) +
+          (stats.total_output_tokens ?? 0) +
+          (stats.total_cache_read_tokens ?? 0) +
+          (stats.total_cache_creation_tokens ?? 0);
+        if (totalTokens === 0) return null;
+        const totalM = (totalTokens / 1_000_000).toFixed(2);
+        return (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm text-violet-700"
+            title={`Input: ${(stats.total_input_tokens ?? 0).toLocaleString()} | Output: ${(stats.total_output_tokens ?? 0).toLocaleString()} | Cache Read: ${(stats.total_cache_read_tokens ?? 0).toLocaleString()} | Cache Create: ${(stats.total_cache_creation_tokens ?? 0).toLocaleString()}`}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 shrink-0">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+            {totalM}M tokens
+          </span>
+        );
+      })()}
+
       <button
         type="button"
         onClick={refresh}
