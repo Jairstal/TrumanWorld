@@ -17,17 +17,31 @@ if TYPE_CHECKING:
     from app.store.models import SimulationRun
 
 
-# 加载世界配置
-_WORLD_CONFIG = load_world_config()
+# 延迟加载世界配置（避免模块导入时初始化问题）
+_WORLD_CONFIG_CACHE: dict | None = None
 
-# 地点定义：从 YAML 配置加载
-LOCATION_CONFIGS = _WORLD_CONFIG.get("locations", [])
 
-# 地点 ID 映射：从 YAML 配置加载
-LOCATION_ID_MAP = _WORLD_CONFIG.get("location_id_map", {})
+def _get_world_config() -> dict:
+    """Lazy load world configuration."""
+    global _WORLD_CONFIG_CACHE
+    if _WORLD_CONFIG_CACHE is None:
+        _WORLD_CONFIG_CACHE = load_world_config()
+    return _WORLD_CONFIG_CACHE
 
-# 职业中文映射：从 YAML 配置加载
-OCCUPATION_NAMES: dict[str, str] = _WORLD_CONFIG.get("occupation_names", {})
+
+# 地点定义：从 YAML 配置加载（延迟加载）
+def _get_location_configs() -> list[dict]:
+    return _get_world_config().get("locations", [])
+
+
+# 地点 ID 映射：从 YAML 配置加载（延迟加载）
+def _get_location_id_map() -> dict:
+    return _get_world_config().get("location_id_map", {})
+
+
+# 职业中文映射：从 YAML 配置加载（延迟加载）
+def _get_occupation_names() -> dict[str, str]:
+    return _get_world_config().get("occupation_names", {})
 
 # 工作描述映射
 WORK_DESCRIPTIONS: dict[str, str] = {
@@ -70,7 +84,7 @@ class TrumanWorldSeedBuilder:
 
     def _get_occupation_name(self, occupation: str) -> str:
         """Get localized occupation name."""
-        return OCCUPATION_NAMES.get(occupation, occupation)
+        return _get_occupation_names().get(occupation, occupation)
 
     def _get_work_description(self, agent_id: str) -> str:
         """Get work description for an agent."""
@@ -82,7 +96,7 @@ class TrumanWorldSeedBuilder:
 
         # 1. 创建地点
         locations: dict[str, Location] = {}
-        for loc_config in LOCATION_CONFIGS:
+        for loc_config in _get_location_configs():
             loc_id = self._build_location_id(run_id, loc_config["id_suffix"])
             locations[loc_config["id_suffix"]] = Location(
                 id=loc_id,
@@ -107,13 +121,14 @@ class TrumanWorldSeedBuilder:
             bio = self.registry.get_bio(config.id) or ""
 
             # 解析 home_location_id
-            home_location_id = self._resolve_location_id(run_id, config.home, LOCATION_ID_MAP)
+            location_id_map = _get_location_id_map()
+            home_location_id = self._resolve_location_id(run_id, config.home, location_id_map)
 
             # 解析 workplace_location_id
             workplace_location_id = None
             if config.workplace:
                 workplace_location_id = self._resolve_location_id(
-                    run_id, config.workplace, LOCATION_ID_MAP
+                    run_id, config.workplace, location_id_map
                 )
 
             # 确定初始位置
@@ -125,15 +140,15 @@ class TrumanWorldSeedBuilder:
             elif initial.initial_location:
                 # 可能是具体的 location key
                 resolved = self._resolve_location_id(
-                    run_id, initial.initial_location, LOCATION_ID_MAP
+                    run_id, initial.initial_location, location_id_map
                 )
                 if resolved:
                     current_location_id = resolved
 
             # 构建 profile
             workplace_name = None
-            if config.workplace and config.workplace in LOCATION_ID_MAP:
-                workplace_name = locations[LOCATION_ID_MAP[config.workplace]].name
+            if config.workplace and config.workplace in location_id_map:
+                workplace_name = locations[location_id_map[config.workplace]].name
 
             profile = build_scenario_agent_profile(
                 bio=bio,
