@@ -8,7 +8,7 @@ flows.
 
 from __future__ import annotations
 
-from app.director.planner import DirectorPlan
+from app.director.types import DirectorPlan
 from app.protocol.simulation import (
     DIRECTOR_SCENE_ACTIVITY,
     DIRECTOR_SCENE_GATHER,

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.agent.providers import HeuristicDecisionProvider
 from app.director.observer import DirectorAssessment, DirectorObserver
-from app.director.planner import DirectorPlan, DirectorPlanner
+from app.director.planner import DirectorPlanner
+from app.director.types import DirectorPlan
+from app.infra.logging import get_logger
 from app.scenario.truman_world.heuristics import build_truman_world_decision
 from app.scenario.truman_world.types import (
     DirectorGuidance,
@@ -13,6 +15,7 @@ from app.scenario.truman_world.types import (
     merge_scenario_agent_profile,
 )
 from app.sim.action_resolver import ActionIntent
+from app.sim.context import get_run_world_time
 from app.sim.types import RuntimeWorldContext
 from app.store.repositories import (
     AgentRepository,
@@ -25,6 +28,8 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.store.models import Agent, Event
+
+logger = get_logger(__name__)
 
 
 class TrumanWorldCoordinator:
@@ -104,19 +109,61 @@ class TrumanWorldCoordinator:
 
         # 获取最近的干预目标，避免重复
         recent_goals: list[str] = []
+        recent_interventions: list[dict[str, Any]] = []
         if self.director_memory_repo is not None:
             recent_goals = await self.director_memory_repo.get_recent_goals(
                 run_id=run_id,
                 current_tick=run.current_tick,
                 lookback_ticks=10,
             )
+            # 获取最近干预记录用于智能决策
+            recent_memories = await self.director_memory_repo.list_for_run(run_id, limit=10)
+            recent_interventions = [
+                {
+                    "tick_no": m.tick_no,
+                    "scene_goal": m.scene_goal,
+                    "reason": m.reason,
+                    "was_executed": m.was_executed,
+                }
+                for m in recent_memories
+            ]
 
-        # 构建自动计划
-        plan = self.planner.build_plan(
-            assessment=assessment,
-            agents=list(agents),
-            recent_intervention_goals=recent_goals,
-        )
+        # 获取最近事件用于智能决策
+        recent_events: list[dict[str, Any]] = []
+        if self.event_repo is not None:
+            events = await self.event_repo.list_for_run(run_id, limit=20)
+            recent_events = [
+                {
+                    "tick_no": e.tick_no,
+                    "event_type": e.event_type,
+                    "description": str(e.payload)[:100] if e.payload else "N/A",
+                }
+                for e in events
+            ]
+
+        # 获取世界时间
+        world_time = get_run_world_time(run).isoformat()
+
+        # 构建自动计划（支持智能决策）
+        try:
+            plan = await self.planner.build_plan(
+                assessment=assessment,
+                agents=list(agents),
+                recent_intervention_goals=recent_goals,
+                current_tick=run.current_tick,
+                recent_events=recent_events,
+                recent_interventions=recent_interventions,
+                world_time=world_time,
+                run_id=run_id,
+            )
+        except Exception as exc:
+            logger.warning(f"Director planner failed: {exc}, falling back to rule-based")
+            # 如果智能决策失败，回退到纯规则决策
+            plan = self.planner._build_rule_based_plan(
+                assessment=assessment,
+                cast_agents=[a for a in agents if self._get_world_role(a) == "cast"],
+                recent_goals=set(recent_goals),
+            )
 
         # 保存新的自动干预计划到记忆
         if plan is not None and self.director_memory_repo is not None:
@@ -134,8 +181,18 @@ class TrumanWorldCoordinator:
                 trigger_continuity_risk=assessment.continuity_risk,
                 cooldown_ticks=plan.cooldown_ticks,
             )
+            if plan.is_intelligent_decision:
+                logger.info(
+                    f"Saved intelligent director plan at tick {run.current_tick}: "
+                    f"{plan.scene_goal} with strategy: {plan.strategy}"
+                )
 
         return plan
+
+    def _get_world_role(self, agent: Agent) -> str:
+        """Get world role from agent profile."""
+        from app.scenario.truman_world.types import get_world_role
+        return get_world_role(agent.profile)
 
     def _convert_memory_to_plan(self, memory) -> DirectorPlan:
         """将 DirectorMemory 转换为 DirectorPlan"""

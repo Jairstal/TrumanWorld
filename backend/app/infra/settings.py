@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     anthropic_model: str | None = None
     log_level: str = "INFO"
     project_root: Path = PROJECT_ROOT
+
+    # 导演智能体配置（实验性功能）
+    director_agent_enabled: bool = True
+    director_agent_model: str | None = None
+    director_decision_interval: int = 1
+
     cors_allowed_origins: list[str] = Field(
         default_factory=lambda: [
             # Docker 环境

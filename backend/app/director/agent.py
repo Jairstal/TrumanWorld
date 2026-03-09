@@ -1,0 +1,275 @@
+"""Director Agent - LLM-based intelligent director decision system.
+
+This module provides the DirectorAgent class that uses LLM to make
+intelligent intervention decisions based on world state observation.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+from app.director.observer import DirectorAssessment
+from app.director.types import DirectorPlan
+from app.infra.logging import get_logger
+from app.infra.settings import get_settings
+from app.scenario.truman_world.types import get_agent_config_id, get_world_role
+
+if TYPE_CHECKING:
+    from app.store.models import Agent
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class DirectorContext:
+    """Context for director decision making."""
+
+    run_id: str
+    current_tick: int
+    assessment: DirectorAssessment
+    agents: list[Agent]
+    recent_events: list[dict[str, Any]]
+    recent_interventions: list[dict[str, Any]]
+    world_time: str
+
+
+class DirectorAgent:
+    """LLM-based director agent for intelligent intervention decisions.
+
+    The DirectorAgent observes the world state and uses LLM to decide
+    whether and how to intervene, providing rich reasoning and strategy.
+    """
+
+    def __init__(self) -> None:
+        self.settings = get_settings()
+        self._enabled = self.settings.director_agent_enabled
+        self._decision_interval = self.settings.director_decision_interval
+        self._model = self.settings.director_agent_model or self.settings.agent_model
+
+    def is_enabled(self) -> bool:
+        """Check if director agent is enabled."""
+        return self._enabled
+
+    def should_decide(self, tick_no: int) -> bool:
+        """Check if should make LLM decision at this tick."""
+        if not self._enabled:
+            return False
+        return tick_no % self._decision_interval == 0
+
+    async def decide(
+        self,
+        context: DirectorContext,
+        recent_goals: set[str],
+    ) -> DirectorPlan | None:
+        """Make an intelligent intervention decision using LLM.
+
+        Args:
+            context: Director context including assessment and world state
+            recent_goals: Recently executed intervention goals to avoid repetition
+
+        Returns:
+            DirectorPlan if intervention is needed, None otherwise
+        """
+        if not self._enabled:
+            return None
+
+        cast_agents = [a for a in context.agents if get_world_role(a.profile) == "cast"]
+        if not cast_agents or context.assessment.truman_agent_id is None:
+            return None
+
+        # Build prompt for LLM
+        prompt = self._build_decision_prompt(context, cast_agents, recent_goals)
+
+        try:
+            # Call LLM for decision
+            response = await self._call_llm(prompt)
+            return self._parse_response(response, context, cast_agents)
+        except Exception as exc:
+            logger.warning(f"DirectorAgent LLM decision failed: {exc}")
+            return None
+
+    def _build_decision_prompt(
+        self,
+        context: DirectorContext,
+        cast_agents: list[Agent],
+        recent_goals: set[str],
+    ) -> str:
+        """Build the decision prompt for LLM."""
+
+        # Build cast agents info
+        cast_info = []
+        for agent in sorted(cast_agents, key=lambda a: a.name):
+            config_id = get_agent_config_id(agent.profile) or "unknown"
+            cast_info.append(
+                f"- {agent.name} (role: {config_id}, location: {agent.current_location_id})"
+            )
+
+        # Build recent events summary
+        events_summary = []
+        for event in context.recent_events[-10:]:  # Last 10 events
+            events_summary.append(
+                f"  - tick {event.get('tick_no')}: {event.get('event_type')} - {event.get('description', 'N/A')}"
+            )
+
+        # Build recent interventions
+        interventions_summary = []
+        for intervention in context.recent_interventions[-5:]:  # Last 5 interventions
+            interventions_summary.append(
+                f"  - tick {intervention.get('tick_no')}: {intervention.get('scene_goal')} - {intervention.get('reason', 'N/A')[:50]}..."
+            )
+
+        # Assessment details
+        assessment = context.assessment
+
+        prompt = f"""You are the Director of the Truman World simulation. Your role is to observe the world state and decide whether to intervene to maintain the illusion and keep Truman engaged.
+
+## Current World State
+
+- **World Time**: {context.world_time}
+- **Current Tick**: {context.current_tick}
+- **Run ID**: {context.run_id}
+
+## Truman's Status
+
+- **Agent ID**: {assessment.truman_agent_id}
+- **Suspicion Score**: {assessment.truman_suspicion_score:.2f} (level: {assessment.suspicion_level})
+- **Isolation Ticks**: {assessment.truman_isolation_ticks}
+- **Recent Rejections**: {assessment.recent_rejections}
+- **Continuity Risk**: {assessment.continuity_risk}
+
+## Cast Agents Available
+
+{chr(10).join(cast_info) if cast_info else "(none)"}
+
+## Recent Events (last 10)
+
+{chr(10).join(events_summary) if events_summary else "(no recent events)"}
+
+## Recent Interventions (last 5)
+
+{chr(10).join(interventions_summary) if interventions_summary else "(no recent interventions)"}
+
+## Recently Used Goals (avoid repeating)
+
+{', '.join(recent_goals) if recent_goals else "(none)"}
+
+## Your Task
+
+Based on the world state, decide whether to intervene. Consider:
+1. Is Truman's suspicion rising? If so, what type of intervention would help?
+2. Has Truman been isolated too long? Should someone naturally encounter him?
+3. Are there continuity risks that need addressing?
+4. What interventions have been tried recently? Avoid repetition.
+
+Choose the most appropriate intervention strategy that feels natural and maintains the illusion.
+
+## Output Format
+
+Respond with a JSON object:
+
+```json
+{{
+  "should_intervene": true/false,
+  "scene_goal": "one of: soft_check_in, preemptive_comfort, keep_scene_natural, break_isolation, rejection_recovery, or none",
+  "target_cast_names": ["name of cast agent(s) to involve"],
+  "priority": "low/normal/high/critical",
+  "urgency": "advisory/immediate/emergency",
+  "reasoning": "detailed explanation of why this intervention is needed",
+  "message_hint": "specific guidance for the cast agent on how to behave",
+  "strategy": "brief description of the intervention strategy",
+  "cooldown_ticks": 3
+}}
+
+If no intervention is needed, set "should_intervene": false and "scene_goal": "none".
+
+Make your decision:"""
+
+        return prompt
+
+    async def _call_llm(self, prompt: str) -> str:
+        """Call LLM for decision.
+
+        For now, this is a placeholder that should be implemented with the
+        actual LLM client. In production, this would use Claude SDK or similar.
+        """
+        # TODO: Implement actual LLM call
+        # For now, return a mock response for testing
+        logger.debug("DirectorAgent LLM call (mock)")
+
+        # This is a placeholder - in production, use actual LLM
+        import random
+
+        # Simulate occasional interventions for testing
+        if random.random() < 0.3:  # 30% chance of intervention for testing
+            return json.dumps(
+                {
+                    "should_intervene": True,
+                    "scene_goal": "break_isolation",
+                    "target_cast_names": ["Alice"],
+                    "priority": "normal",
+                    "urgency": "advisory",
+                    "reasoning": "Truman has been isolated for several ticks. A natural encounter would help maintain engagement.",
+                    "message_hint": "You happen to be going to the same location as Truman. Keep it natural, don't force interaction.",
+                    "strategy": "Natural encounter to break isolation",
+                    "cooldown_ticks": 4,
+                }
+            )
+
+        return json.dumps({"should_intervene": False, "scene_goal": "none"})
+
+    def _parse_response(
+        self,
+        response: str,
+        context: DirectorContext,
+        cast_agents: list[Agent],
+    ) -> DirectorPlan | None:
+        """Parse LLM response into DirectorPlan."""
+        try:
+            # Extract JSON from response (handle markdown code blocks)
+            json_str = response
+            if "```json" in response:
+                json_str = response.split("```json")[1].split("```")[0].strip()
+            elif "```" in response:
+                json_str = response.split("```")[1].split("```")[0].strip()
+
+            data = json.loads(json_str)
+
+            if not data.get("should_intervene", False):
+                return None
+
+            scene_goal = data.get("scene_goal", "none")
+            if scene_goal == "none":
+                return None
+
+            # Map cast names to agent IDs
+            target_cast_names = data.get("target_cast_names", [])
+            target_cast_ids = []
+            for name in target_cast_names:
+                for agent in cast_agents:
+                    if agent.name.lower() == name.lower():
+                        target_cast_ids.append(agent.id)
+                        break
+
+            if not target_cast_ids and cast_agents:
+                # Fallback to first cast agent if names don't match
+                target_cast_ids = [cast_agents[0].id]
+
+            return DirectorPlan(
+                scene_goal=scene_goal,
+                target_cast_ids=target_cast_ids,
+                priority=data.get("priority", "normal"),
+                urgency=data.get("urgency", "advisory"),
+                message_hint=data.get("message_hint"),
+                target_agent_id=context.assessment.truman_agent_id,
+                reason=data.get("reasoning", "LLM-based intervention decision"),
+                cooldown_ticks=data.get("cooldown_ticks", 3),
+            )
+
+        except json.JSONDecodeError as exc:
+            logger.warning(f"Failed to parse DirectorAgent response: {exc}")
+            return None
+        except Exception as exc:
+            logger.warning(f"Error parsing DirectorAgent response: {exc}")
+            return None

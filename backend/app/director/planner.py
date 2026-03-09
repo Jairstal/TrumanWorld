@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from app.protocol.simulation import (
     DIRECTOR_SCENE_BREAK_ISOLATION,
@@ -9,27 +10,18 @@ from app.protocol.simulation import (
     DIRECTOR_SCENE_REJECTION_RECOVERY,
     DIRECTOR_SCENE_SOFT_CHECK_IN,
 )
+from app.director.agent import DirectorAgent, DirectorContext
 from app.director.observer import DirectorAssessment
+from app.director.types import DirectorPlan
+from app.infra.logging import get_logger
 from app.scenario.truman_world.types import get_agent_config_id, get_world_role
 from app.store.models import Agent
 
-
-@dataclass
-class DirectorPlan:
-    scene_goal: str
-    target_cast_ids: list[str]
-    priority: str
-    message_hint: str | None = None
-    location_hint: str | None = None
-    target_agent_id: str | None = None
-    reason: str | None = None
-    # 新增字段
-    urgency: str = "advisory"  # "advisory" | "immediate" | "emergency"
-    cooldown_ticks: int = 3  # 建议的冷却时间
+logger = get_logger(__name__)
 
 
 class DirectorPlanner:
-    """Rule-based planner that turns observation into low-frequency advisory guidance.
+    """Hybrid planner that combines rule-based and LLM-based intervention decisions.
 
     支持的场景策略：
     - soft_check_in: 高怀疑度时的温和互动
@@ -37,14 +29,24 @@ class DirectorPlanner:
     - keep_scene_natural: 连续性风险时的场景维护
     - break_isolation: 打破 Truman 长时间独处
     - rejection_recovery: 处理连续被拒绝的场景
+
+    实验性功能：当 director_agent_enabled=true 时，优先使用LLM智能决策
     """
 
-    def build_plan(
+    def __init__(self) -> None:
+        self._agent = DirectorAgent()
+
+    async def build_plan(
         self,
         *,
         assessment: DirectorAssessment,
         agents: list[Agent],
         recent_intervention_goals: list[str] | None = None,
+        current_tick: int = 0,
+        recent_events: list[dict[str, Any]] | None = None,
+        recent_interventions: list[dict[str, Any]] | None = None,
+        world_time: str = "",
+        run_id: str = "",
     ) -> DirectorPlan | None:
         """构建导演干预计划
 
@@ -52,6 +54,11 @@ class DirectorPlanner:
             assessment: 世界状态评估
             agents: 所有 agent 列表
             recent_intervention_goals: 最近已执行的场景目标列表（用于避免重复）
+            current_tick: 当前 tick 编号
+            recent_events: 最近事件列表（用于智能决策）
+            recent_interventions: 最近干预记录（用于智能决策）
+            world_time: 世界时间字符串
+            run_id: 运行ID
 
         Returns:
             DirectorPlan 或 None（无需干预时）
@@ -63,6 +70,40 @@ class DirectorPlanner:
         # 检查最近已执行的干预，避免重复
         recent_goals = set(recent_intervention_goals or [])
 
+        # 实验性功能：尝试使用LLM智能决策
+        if self._agent.is_enabled() and self._agent.should_decide(current_tick):
+            try:
+                context = DirectorContext(
+                    run_id=run_id,
+                    current_tick=current_tick,
+                    assessment=assessment,
+                    agents=agents,
+                    recent_events=recent_events or [],
+                    recent_interventions=recent_interventions or [],
+                    world_time=world_time,
+                )
+                plan = await self._agent.decide(context, recent_goals)
+                if plan is not None:
+                    # 标记为智能决策
+                    plan.is_intelligent_decision = True
+                    logger.info(
+                        f"DirectorAgent made intelligent decision at tick {current_tick}: "
+                        f"{plan.scene_goal} targeting {plan.target_cast_ids}"
+                    )
+                    return plan
+            except Exception as exc:
+                logger.warning(f"DirectorAgent decision failed, falling back to rules: {exc}")
+
+        # 回退到规则决策
+        return self._build_rule_based_plan(assessment, cast_agents, recent_goals)
+
+    def _build_rule_based_plan(
+        self,
+        assessment: DirectorAssessment,
+        cast_agents: list[Agent],
+        recent_goals: set[str],
+    ) -> DirectorPlan | None:
+        """基于规则的干预计划构建（回退方案）"""
         # 按优先级顺序检查各个场景策略
         # 1. 紧急场景：怀疑度快速上升
         if (plan := self._check_rapid_rise(assessment, cast_agents, recent_goals)) is not None:
