@@ -78,23 +78,59 @@ export function calculateWorldHealthMetrics(
   const events = world.recent_events;
   const agents = world.locations.flatMap((l) => l.occupants);
 
-  // 1. 剧情连贯性：基于拒绝事件计算
-  const rejectionEvents = events.filter(
-    (e) => e.event_type === "move_rejected" || e.event_type === "talk_rejected",
-  );
-  const continuityScore = Math.max(0, 100 - rejectionEvents.length * 15);
-  const continuityTrend: Trend =
-    rejectionEvents.length > 0 ? "down" : "stable";
-  const continuityIssue =
-    rejectionEvents.length > 0
-      ? getRejectionDescription(rejectionEvents[0], agents)
-      : undefined;
+  // 1. 剧情连贯性：基于累计拒绝率（使用 daily_stats 全量数据）
+  // 有 daily_stats 就用全量，否则退回 recent_events
+  let continuityScore: number;
+  let continuityTrend: Trend;
+  let continuityIssue: string | undefined;
 
-  // 2. 社交活跃度：基于对话事件频率 (假设50个tick内有10次对话为100%)
-  const talkEvents = events.filter((e) => e.event_type === EVENT_TALK);
-  const socialActivity = Math.min(100, (talkEvents.length / 10) * 100);
-  const socialTrend: Trend =
-    talkEvents.length > 5 ? "up" : talkEvents.length > 0 ? "stable" : "down";
+  if (world.daily_stats) {
+    const totalEvents =
+      (world.daily_stats.talk_count ?? 0) +
+      (world.daily_stats.move_count ?? 0) +
+      (world.daily_stats.rejection_count ?? 0);
+    const rejectionCount = world.daily_stats.rejection_count ?? 0;
+    const rejectionRate = totalEvents > 0 ? rejectionCount / totalEvents : 0;
+    // 拒绝率 0% → 100分，50% → 0分（拒绝率每增加1%扣2分）
+    continuityScore = Math.max(0, Math.round(100 - rejectionRate * 200));
+    continuityTrend = rejectionRate > 0.15 ? "down" : rejectionRate > 0.05 ? "stable" : "stable";
+    continuityIssue =
+      rejectionRate > 0.2
+        ? `动作拒绝率偏高 (${Math.round(rejectionRate * 100)}%)`
+        : undefined;
+  } else {
+    const rejectionEvents = events.filter(
+      (e) => e.event_type === "move_rejected" || e.event_type === "talk_rejected",
+    );
+    continuityScore = Math.max(0, 100 - rejectionEvents.length * 15);
+    continuityTrend = rejectionEvents.length > 0 ? "down" : "stable";
+    continuityIssue =
+      rejectionEvents.length > 0
+        ? getRejectionDescription(rejectionEvents[0], agents)
+        : undefined;
+  }
+
+  // 2. 社交活跃度：基于全量数据计算每天每人对话频率
+  // 参考基准：每人每天 5 次对话 = 100%（来自第3世界数据：27次/人/天属于活跃）
+  let socialActivity: number;
+  let socialTrend: Trend;
+
+  if (world.daily_stats && world.daily_stats.talk_count != null) {
+    const tick = world.run.current_tick ?? 0;
+    const tickMinutes = world.run.tick_minutes ?? 5;
+    const totalDays = Math.max((tick * tickMinutes) / (24 * 60), 0.1);
+    const agentCount = Math.max(agents.length, 1);
+    const talksPerPersonPerDay = world.daily_stats.talk_count / totalDays / agentCount;
+    // 每人每天 10 次 = 100%，低于1次/天视为不活跃
+    socialActivity = Math.min(100, Math.round((talksPerPersonPerDay / 10) * 100));
+    socialTrend =
+      talksPerPersonPerDay > 3 ? "up" : talksPerPersonPerDay > 1 ? "stable" : "down";
+  } else {
+    const talkEvents = events.filter((e) => e.event_type === EVENT_TALK);
+    socialActivity = Math.min(100, (talkEvents.length / 10) * 100);
+    socialTrend =
+      talkEvents.length > 5 ? "up" : talkEvents.length > 0 ? "stable" : "down";
+  }
 
   // 3. Truman怀疑度
   const truman = agents.find((a) => a.name === "Truman");
@@ -102,7 +138,7 @@ export function calculateWorldHealthMetrics(
     ((truman?.status?.suspicion_score as number) ?? 0) * 100;
   const suspicionTrend: Trend = "stable";
 
-  // 4. 导演干预统计（如果后端提供数据）
+  // 4. 导演干预统计
   const totalMemories = directorMemories?.length ?? 0;
   const executedMemories =
     directorMemories?.filter((m) => m.was_executed).length ?? 0;
@@ -114,11 +150,11 @@ export function calculateWorldHealthMetrics(
   const activitySummary = calculateActivitySummary(agents, world.locations);
 
   return {
-    continuityScore: Math.round(continuityScore),
+    continuityScore,
     continuityTrend,
     continuityIssue,
 
-    socialActivity: Math.round(socialActivity),
+    socialActivity,
     socialTrend,
 
     trumanSuspicion: Math.round(trumanSuspicion),
@@ -135,10 +171,9 @@ export function calculateWorldHealthMetrics(
 
     activitySummary,
 
-    // Use daily_stats from backend if available, otherwise fall back to recent_events count
-    recentTalkCount: world.daily_stats?.talk_count ?? talkEvents.length,
+    recentTalkCount: world.daily_stats?.talk_count ?? events.filter((e) => e.event_type === EVENT_TALK).length,
     recentMoveCount: world.daily_stats?.move_count ?? events.filter((e) => e.event_type === EVENT_MOVE).length,
-    recentRejectionCount: world.daily_stats?.rejection_count ?? rejectionEvents.length,
+    recentRejectionCount: world.daily_stats?.rejection_count ?? events.filter((e) => e.event_type === "move_rejected" || e.event_type === "talk_rejected").length,
   };
 }
 
