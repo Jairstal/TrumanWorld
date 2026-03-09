@@ -48,25 +48,32 @@ export function WorldHealthPanel({ metrics, runId, world }: WorldHealthPanelProp
   const getAgentsByActivity = (type: ActivityType): { id: string; name: string; location?: string }[] => {
     if (!world) return [];
     const agents: { id: string; name: string; location?: string }[] = [];
+    const locationTypeMap = new Map(world.locations.map((l) => [l.id, l.location_type]));
+
     for (const location of world.locations) {
       for (const agent of location.occupants) {
-        // status 是对象，检查 current_action 或 action 字段
-        const statusObj = agent.status || {};
-        const action = String(statusObj.current_action || statusObj.action || "").toLowerCase();
-        const state = String(statusObj.state || "").toLowerCase();
+        const goal = agent.current_goal?.toLowerCase() ?? "";
+        const locationType = agent.current_location_id
+          ? locationTypeMap.get(agent.current_location_id)
+          : undefined;
+        const isWorkContext = locationType != null && locationType !== "home" && locationType !== "plaza";
+
         let match = false;
         switch (type) {
           case "working":
-            match = action.includes("work") || state.includes("work");
+            match = goal === "work" && isWorkContext;
             break;
           case "socializing":
-            match = action.includes("talk") || action.includes("conversation") || state.includes("talk");
+            match = goal === "talk";
             break;
           case "resting":
-            match = action.includes("rest") || action.includes("sleep") || state.includes("rest");
+            match = goal === "rest" || goal === "wander" ||
+                    (goal !== "work" && goal !== "talk" && goal !== "commute" &&
+                     goal !== "go_home" && !goal.startsWith("move:"));
             break;
           case "commuting":
-            match = action.includes("move") || action.includes("travel") || action.includes("commute") || state.includes("move");
+            match = goal === "commute" || goal === "go_home" || goal.startsWith("move:") ||
+                    (goal === "work" && !isWorkContext);
             break;
         }
         if (match) {
