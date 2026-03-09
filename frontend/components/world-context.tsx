@@ -36,7 +36,9 @@ function isWorldDataEqual(a: WorldSnapshot | null, b: WorldSnapshot | null): boo
   
   // Compare location occupant counts (main visual change)
   for (let i = 0; i < a.locations.length; i++) {
-    if (a.locations[i].occupant_ids.length !== b.locations[i].occupant_ids.length) {
+    const aOccupants = a.locations[i].occupant_ids ?? [];
+    const bOccupants = b.locations[i].occupant_ids ?? [];
+    if (aOccupants.length !== bOccupants.length) {
       return false;
     }
   }
