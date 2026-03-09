@@ -119,6 +119,13 @@ export function WorldStatusBar() {
 
   return (
     <div className="flex items-center gap-3">
+      {/* 模拟时间 - 移到暂停按钮左侧 */}
+      <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600">
+        {world.world_clock
+          ? `${simDayLabel(world.run.current_tick ?? 0, world.run.tick_minutes ?? 5)} ${world.world_clock.time}`
+          : `模拟时间 ${formatSimTime(world)}`}
+      </span>
+
       <button
         type="button"
         onClick={handleToggleRun}
@@ -168,12 +175,6 @@ export function WorldStatusBar() {
           <polyline points="12 6 12 12 16 14" />
         </svg>
         {formatElapsed(elapsed)}
-      </span>
-
-      <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600">
-        {world.world_clock
-          ? `${simDayLabel(world.run.current_tick ?? 0, world.run.tick_minutes ?? 5)} ${world.world_clock.time}`
-          : `模拟时间 ${formatSimTime(world)}`}
       </span>
 
       {/* Token 消耗统计 */}

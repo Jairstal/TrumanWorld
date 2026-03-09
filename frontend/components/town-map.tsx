@@ -340,22 +340,7 @@ export function TownMap({
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase tracking-[0.22em] text-moss">小镇地图</span>
-            {/* 当前时段指示 */}
-            <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs ${
-              timeStyle.isDark
-                ? "bg-slate-700 text-slate-200"
-                : "bg-slate-100 text-slate-600"
-            }`}>
-              <span>{timeStyle.icon}</span>
-              <span>{timeStyle.label}</span>
-              <span className="text-slate-400">
-                {simDayLabel(world.run.current_tick ?? 0, world.run.tick_minutes ?? 5)} {world.world_clock?.time ?? `${String(hour).padStart(2, "0")}:00`}
-              </span>
-            </span>
           </div>
-          <p className={`mt-1 text-sm ${timeStyle.isDark ? "text-slate-400" : "text-slate-500"}`}>
-            拖拽平移、滚轮缩放，点击地点查看详情。夜晚时有人的地点会亮灯。
-          </p>
         </div>
         <div className={`flex flex-col items-end gap-1.5 text-xs ${timeStyle.isDark ? "text-slate-400" : "text-slate-500"}`}>
           {/* 热力等级 + 夜晚灯光 + 控制按钮 */}
