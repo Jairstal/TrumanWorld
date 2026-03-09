@@ -202,49 +202,58 @@ export function AgentDetailModal({ isOpen, onClose, runId, agentId }: AgentDetai
         </aside>
 
         {/* 右侧：行为和记忆 */}
-        <div className="flex min-h-0 flex-1 flex-col bg-white">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 bg-slate-50/30 p-4">
           {/* 近期事件 */}
-          <section className="flex-1 overflow-y-auto p-4">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">近期事件</h3>
-            {agent.recent_events.length === 0 ? (
-              <p className="text-sm text-slate-400">暂无近期事件</p>
-            ) : (
-              <div className="space-y-2">
-                {agent.recent_events.map((event) => (
-                  <div
-                    key={event.id}
-                    className="rounded-xl border border-slate-100 bg-slate-50/50 p-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm text-slate-700">
-                        {describeAgentEvent(event)}
-                      </p>
-                      <span className="shrink-0 text-[10px] text-slate-400">
-                        {world &&
-                          tickToSimDayTime(
-                            event.tick_no,
-                            world.run.tick_minutes,
-                            world.run.current_tick,
-                            world.world_clock?.iso
-                          )}
-                      </span>
+          <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <span className="h-4 w-1 rounded-full bg-moss" />
+              近期事件
+              <span className="ml-1 text-xs font-normal text-slate-400">({agent.recent_events.length})</span>
+            </h3>
+            <div className="flex-1 overflow-y-auto pr-1">
+              {agent.recent_events.length === 0 ? (
+                <p className="text-sm text-slate-400">暂无近期事件</p>
+              ) : (
+                <div className="space-y-2">
+                  {agent.recent_events.map((event) => (
+                    <div
+                      key={event.id}
+                      className="rounded-xl border border-slate-100 bg-slate-50/50 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm text-slate-700">
+                          {describeAgentEvent(event)}
+                        </p>
+                        <span className="shrink-0 text-[10px] text-slate-400">
+                          {world &&
+                            tickToSimDayTime(
+                              event.tick_no,
+                              world.run.tick_minutes,
+                              world.run.current_tick,
+                              world.world_clock?.iso
+                            )}
+                        </span>
+                      </div>
+                      {event.location_name && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          📍 {event.location_name}
+                        </p>
+                      )}
                     </div>
-                    {event.location_name && (
-                      <p className="mt-1 text-xs text-slate-400">
-                        📍 {event.location_name}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
 
           {/* 记忆 */}
-          <section className="flex-1 overflow-y-auto border-t border-slate-100 p-4">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">
-              内部记忆栈 ({memories.length})
+          <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <span className="h-4 w-1 rounded-full bg-amber-500" />
+              内部记忆栈
+              <span className="ml-1 text-xs font-normal text-slate-400">({memories.length})</span>
             </h3>
+            <div className="flex-1 overflow-y-auto pr-1">
             {memories.length === 0 ? (
               <p className="text-sm text-slate-400">暂无记忆数据</p>
             ) : (
@@ -267,6 +276,7 @@ export function AgentDetailModal({ isOpen, onClose, runId, agentId }: AgentDetai
                 ))}
               </div>
             )}
+            </div>
           </section>
         </div>
       </div>
