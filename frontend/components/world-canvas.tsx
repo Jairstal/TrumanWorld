@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import type { WorldEvent } from "@/lib/types";
 
@@ -14,6 +13,7 @@ import { IntelligenceStreamModal } from "@/components/intelligence-stream-modal"
 import { LocationDetailModal } from "@/components/location-detail-modal";
 import { WorldHealthPanel } from "@/components/world-health-panel";
 import { StoryTimeline } from "@/components/story-timeline";
+import { TimelineModal } from "@/components/timeline-modal";
 import { useWorld } from "@/components/world-context";
 import {
   calculateWorldHealthMetrics,
@@ -35,13 +35,20 @@ type Props = {
 };
 
 export function WorldCanvas({ runId }: Props) {
-  const router = useRouter();
   const { world } = useWorld();
   const [highlightedLocationId, setHighlightedLocationId] = useState<string | null>(null);
   const [eventFilter, setEventFilter] = useState<EventFilter>("all");
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
   const [isStreamExpanded, setIsStreamExpanded] = useState(false);
   const [isLocationExpanded, setIsLocationExpanded] = useState(false);
+  const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
+
+  // 监听打开时间线弹窗的事件
+  useEffect(() => {
+    const handleOpenTimeline = () => setIsTimelineExpanded(true);
+    window.addEventListener("openTimelineModal", handleOpenTimeline);
+    return () => window.removeEventListener("openTimelineModal", handleOpenTimeline);
+  }, []);
 
   const latestTick = world?.recent_events[0]?.tick_no ?? world?.run.current_tick ?? 0;
 
@@ -214,9 +221,16 @@ export function WorldCanvas({ runId }: Props) {
         <div className="flex h-full min-h-0 flex-col">
           <StoryTimeline
             chapters={storyChapters}
-            onExpand={() => router.push(`/runs/${runId}/timeline`)}
+            onExpand={() => setIsTimelineExpanded(true)}
           />
         </div>
+
+        {/* 事件回放弹窗 */}
+        <TimelineModal
+          isOpen={isTimelineExpanded}
+          onClose={() => setIsTimelineExpanded(false)}
+          runId={runId}
+        />
       </div>
     </div>
   );

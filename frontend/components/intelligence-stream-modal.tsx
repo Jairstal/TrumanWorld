@@ -242,13 +242,17 @@ export function IntelligenceStreamModal({
                 <span className="ml-1 text-slate-400">（已筛选 / 共 {allEvents.length} 条）</span>
               ) : null}
             </span>
-            <Link
-              href={`/runs/${runId}/timeline`}
-              onClick={onClose}
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                // 通过事件通知 world-canvas 打开 timeline modal
+                window.dispatchEvent(new CustomEvent("openTimelineModal"));
+              }}
               className="text-moss hover:underline"
             >
               查看完整时间线 →
-            </Link>
+            </button>
           </div>
         </div>
     </Modal>
