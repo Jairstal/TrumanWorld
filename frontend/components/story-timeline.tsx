@@ -107,12 +107,7 @@ function ChapterCard({
             {chapter.periodIcon}
           </span>
           <div className="flex items-center gap-2">
-            <span className="font-medium text-ink">{chapter.periodName}</span>
-            {isLatest && (
-              <span className="rounded-full bg-moss/10 px-1.5 py-0.5 text-[10px] font-medium text-moss">
-                最新
-              </span>
-            )}
+            <span className="text-sm font-medium text-ink">{chapter.periodName}</span>
             <span className="text-xs text-slate-400">{chapter.timeLabel}</span>
           </div>
         </div>
