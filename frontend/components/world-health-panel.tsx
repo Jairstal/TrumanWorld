@@ -477,7 +477,8 @@ function DirectorInterventionModal({
           isOpen={isOpen}
           onClose={onClose}
           size="xl"
-          title="🎬 导演干预控制台"
+          showCloseButton={false}
+          title="导演干预控制台"
           subtitle="管理和监控所有导演干预计划"
         >
 

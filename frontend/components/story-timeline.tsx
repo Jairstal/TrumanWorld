@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { StoryChapter, StoryEvent } from "@/lib/world-insights";
 
 interface StoryTimelineProps {
@@ -10,9 +10,18 @@ interface StoryTimelineProps {
 }
 
 export function StoryTimeline({ chapters, onExpand }: StoryTimelineProps) {
-  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(
-    () => new Set(chapters.length > 0 ? [chapters[0].id] : []),
-  );
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
+
+  // 当 chapters 数据变化时，默认展开第一个时段
+  useEffect(() => {
+    if (chapters.length > 0) {
+      setExpandedChapters((prev) => {
+        // 如果已经有展开的，保持现状；否则展开第一个
+        if (prev.size > 0) return prev;
+        return new Set([chapters[0].id]);
+      });
+    }
+  }, [chapters]);
 
   const toggleChapter = (chapterId: string) => {
     setExpandedChapters((prev) => {
