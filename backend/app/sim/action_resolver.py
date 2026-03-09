@@ -36,14 +36,34 @@ class ActionResolver:
     SUPPORTED_ACTIONS = {"move", "rest", "work", "talk"}
 
     def __init__(self) -> None:
-        # Tracks all agent IDs that have already participated in an accepted
-        # talk event this tick (as actor OR target).  Reset each tick via
-        # SimulationRunner.
+        # Agents that have completed (accepted) a talk this tick — blocks further talk.
         self._talked_agents: set[str] = set()
+        # Agents pre-registered as talk targets this tick — blocks non-talk actions.
+        self._prefilled_targets: set[str] = set()
 
     def reset_tick(self) -> None:
-        """Clear the talked-agents set at the start of each tick."""
+        """Clear per-tick state at the start of each tick."""
         self._talked_agents.clear()
+        self._prefilled_targets.clear()
+
+    def prefill_talked_agents(self, intents: list[ActionIntent], world: WorldState) -> None:
+        """Pre-scan intents to register talk targets before resolve() is called.
+
+        Only the TARGET of each valid talk is registered in _prefilled_targets,
+        so that regardless of processing order, a target's non-talk actions
+        (rest/work/move) in the same tick are suppressed via agent_in_conversation.
+        The actor's own talk intent is not pre-blocked here.
+        """
+        for intent in intents:
+            if intent.action_type != "talk":
+                continue
+            actor = world.get_agent(intent.agent_id)
+            target = world.get_agent(intent.target_agent_id or "")
+            if actor is None or target is None:
+                continue
+            if actor.location_id != target.location_id:
+                continue
+            self._prefilled_targets.add(target.id)
 
     def resolve(self, world: WorldState, intent: ActionIntent) -> ActionResult:
         agent = world.get_agent(intent.agent_id)
@@ -71,9 +91,10 @@ class ActionResolver:
                 },
             )
 
-        # If this agent is already participating in a talk this tick (as target),
-        # suppress any other action so the timeline doesn't show a spurious rest/move.
-        if intent.agent_id in self._talked_agents and intent.action_type != "talk":
+        # If this agent is pre-registered as a talk target this tick,
+        # suppress non-talk actions so no spurious rest/work/move appears
+        # alongside the talk event in the timeline.
+        if intent.agent_id in self._prefilled_targets and intent.action_type != "talk":
             return ActionResult(
                 False,
                 intent.action_type,

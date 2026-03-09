@@ -171,30 +171,57 @@ def test_action_resolver_only_one_talk_per_pair_per_tick():
 
 
 def test_action_resolver_suppresses_rest_for_talk_target():
-    """When Alice talks to Bob, Bob's subsequent rest intent in the same tick
-    should be suppressed (rejected with 'agent_in_conversation') so no
-    spurious rest event appears alongside the talk event."""
+    """When Alice talks to Bob, Bob's rest intent in the same tick should be
+    suppressed (rejected with 'agent_in_conversation') so no spurious rest
+    event appears alongside the talk event."""
     world = _build_collocated_world()
     resolver = ActionResolver()
     resolver.reset_tick()
 
-    result_alice = resolver.resolve(
-        world,
+    intents = [
         ActionIntent(
             agent_id="alice",
             action_type="talk",
             target_agent_id="bob",
             payload={"message": "Hey Bob!"},
         ),
-    )
-    result_bob_rest = resolver.resolve(
-        world,
         ActionIntent(agent_id="bob", action_type="rest"),
-    )
+    ]
+    resolver.prefill_talked_agents(intents, world)
+
+    result_alice = resolver.resolve(world, intents[0])
+    result_bob_rest = resolver.resolve(world, intents[1])
 
     assert result_alice.accepted is True
     assert result_bob_rest.accepted is False
     assert result_bob_rest.reason == "agent_in_conversation"
+
+
+def test_action_resolver_suppresses_work_for_talk_target_regardless_of_order():
+    """Even when the target's work intent is processed BEFORE the talk intent,
+    prefill_talked_agents ensures the work is still suppressed."""
+    world = _build_collocated_world()
+    runner = SimulationRunner(world)
+
+    # Bob's work comes first in the list, Alice's talk comes second
+    result = runner.tick(
+        [
+            ActionIntent(agent_id="bob", action_type="work"),
+            ActionIntent(
+                agent_id="alice",
+                action_type="talk",
+                target_agent_id="bob",
+                payload={"message": "Hey Bob!"},
+            ),
+        ]
+    )
+
+    accepted_types = {r.action_type for r in result.accepted}
+    rejected_reasons = {r.reason for r in result.rejected}
+
+    assert "talk" in accepted_types
+    assert "work" not in accepted_types
+    assert "agent_in_conversation" in rejected_reasons
 
 
 def test_action_resolver_resets_talked_agents_between_ticks():

@@ -27,8 +27,13 @@ class SimulationRunner:
         accepted: list[ActionResult] = []
         rejected: list[ActionResult] = []
 
+        intent_list = list(intents)
         self.resolver.reset_tick()
-        for intent in intents:
+        # Pre-scan all talk intents so both actor and target are in _talked_agents
+        # before any resolve() call, ensuring order-independent suppression of
+        # concurrent non-talk actions from agents already in a conversation.
+        self.resolver.prefill_talked_agents(intent_list, self.world)
+        for intent in intent_list:
             result = self.resolver.resolve(self.world, intent)
             if result.accepted:
                 accepted.append(result)
