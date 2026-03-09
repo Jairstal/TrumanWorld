@@ -25,9 +25,59 @@ interface WorldHealthPanelProps {
   world?: WorldSnapshot;
 }
 
+type ActivityType = "working" | "socializing" | "resting" | "commuting";
+
+interface ActivityModalState {
+  isOpen: boolean;
+  type: ActivityType | null;
+  title: string;
+  agents: { id: string; name: string; location?: string }[];
+}
+
 export function WorldHealthPanel({ metrics, runId, world }: WorldHealthPanelProps) {
   const [isDirectorExpanded, setIsDirectorExpanded] = useState(false);
+  const [activityModal, setActivityModal] = useState<ActivityModalState>({
+    isOpen: false,
+    type: null,
+    title: "",
+    agents: [],
+  });
   const { refresh } = useWorld();
+
+  // 根据活动类型获取智能体列表
+  const getAgentsByActivity = (type: ActivityType): { id: string; name: string; location?: string }[] => {
+    if (!world) return [];
+    const agents: { id: string; name: string; location?: string }[] = [];
+    for (const location of world.locations) {
+      for (const agent of location.occupants) {
+        const status = agent.status?.toLowerCase() || "";
+        let match = false;
+        switch (type) {
+          case "working":
+            match = status.includes("work") || status.includes("在岗");
+            break;
+          case "socializing":
+            match = status.includes("talk") || status.includes("对话") || status.includes("social");
+            break;
+          case "resting":
+            match = status.includes("rest") || status.includes("休息") || status.includes("sleep");
+            break;
+          case "commuting":
+            match = status.includes("move") || status.includes("通勤") || status.includes("travel");
+            break;
+        }
+        if (match) {
+          agents.push({ id: agent.id, name: agent.name, location: location.name });
+        }
+      }
+    }
+    return agents;
+  };
+
+  const handleActivityClick = (type: ActivityType, title: string) => {
+    const agents = getAgentsByActivity(type);
+    setActivityModal({ isOpen: true, type, title, agents });
+  };
   return (
     <div className="rounded-[28px] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
       {/* 标题区 */}
@@ -92,24 +142,28 @@ export function WorldHealthPanel({ metrics, runId, world }: WorldHealthPanelProp
             label="在岗中"
             count={metrics.activitySummary.working}
             color="amber"
+            onClick={() => handleActivityClick("working", "在岗中")}
           />
           <ActivityBadge
             icon="💬"
             label="对话中"
             count={metrics.activitySummary.socializing}
             color="emerald"
+            onClick={() => handleActivityClick("socializing", "对话中")}
           />
           <ActivityBadge
             icon="😴"
             label="休息中"
             count={metrics.activitySummary.resting}
             color="slate"
+            onClick={() => handleActivityClick("resting", "休息中")}
           />
           <ActivityBadge
             icon="🚶"
             label="通勤中"
             count={metrics.activitySummary.commuting}
             color="blue"
+            onClick={() => handleActivityClick("commuting", "通勤中")}
           />
         </div>
         {/* 今日统计 - 内嵌在活动区域底部 */}
@@ -124,7 +178,52 @@ export function WorldHealthPanel({ metrics, runId, world }: WorldHealthPanelProp
           />
         </div>
       </div>
+
+      {/* 活动分布详情弹窗 */}
+      <ActivityDetailModal
+        isOpen={activityModal.isOpen}
+        onClose={() => setActivityModal((prev) => ({ ...prev, isOpen: false }))}
+        title={activityModal.title}
+        agents={activityModal.agents}
+      />
     </div>
+  );
+}
+
+// ============================================================================
+// 活动详情弹窗
+// ============================================================================
+
+interface ActivityDetailModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  agents: { id: string; name: string; location?: string }[];
+}
+
+function ActivityDetailModal({ isOpen, onClose, title, agents }: ActivityDetailModalProps) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="md" showCloseButton title={title}>
+      <div className="max-h-[60vh] overflow-y-auto">
+        {agents.length === 0 ? (
+          <p className="py-8 text-center text-sm text-slate-400">暂无{title}的智能体</p>
+        ) : (
+          <div className="space-y-2">
+            {agents.map((agent) => (
+              <div
+                key={agent.id}
+                className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-3"
+              >
+                <span className="text-sm font-medium text-slate-700">{agent.name}</span>
+                {agent.location && (
+                  <span className="text-xs text-slate-400">📍 {agent.location}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -291,24 +390,28 @@ interface ActivityBadgeProps {
   label: string;
   count: number;
   color: "amber" | "slate" | "blue" | "emerald";
+  onClick?: () => void;
 }
 
-function ActivityBadge({ icon, label, count, color }: ActivityBadgeProps) {
+function ActivityBadge({ icon, label, count, color, onClick }: ActivityBadgeProps) {
   const colorClasses = {
-    amber: "bg-amber-50 text-amber-700 border-amber-100",
-    slate: "bg-slate-50 text-slate-700 border-slate-100",
-    blue: "bg-blue-50 text-blue-700 border-blue-100",
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    amber: "bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100",
+    slate: "bg-slate-50 text-slate-700 border-slate-100 hover:bg-slate-100",
+    blue: "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100",
+    emerald: "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100",
   };
 
+  const Component = onClick ? "button" : "div";
+
   return (
-    <div
-      className={`flex flex-col items-center rounded-lg border px-2 py-2 ${colorClasses[color]}`}
+    <Component
+      onClick={onClick}
+      className={`flex flex-col items-center rounded-lg border px-2 py-2 transition-colors ${colorClasses[color]} ${onClick ? "cursor-pointer" : ""}`}
     >
       <span className="text-base">{icon}</span>
       <span className="text-sm font-semibold">{count}</span>
       <span className="text-[10px] text-slate-500">{label}</span>
-    </div>
+    </Component>
   );
 }
 
