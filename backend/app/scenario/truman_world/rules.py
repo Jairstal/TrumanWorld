@@ -32,16 +32,21 @@ _WORLD_CONFIG_PATH = Path(__file__).parent / "world_config.yml"
 _WORLD_CONFIG_CACHE: dict[str, Any] | None = None
 
 
-def _load_world_config() -> dict[str, Any]:
+def load_world_config() -> dict[str, Any]:
     """Load world configuration from YAML file.
     
     Uses caching to avoid repeated file reads.
+    This is the public API for accessing world configuration.
     """
     global _WORLD_CONFIG_CACHE
     if _WORLD_CONFIG_CACHE is None:
         with open(_WORLD_CONFIG_PATH, "r", encoding="utf-8") as f:
             _WORLD_CONFIG_CACHE = yaml.safe_load(f)
     return _WORLD_CONFIG_CACHE
+
+
+# Backward compatibility alias
+_load_world_config = load_world_config
 
 
 def build_perception_context(

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from app.agent.registry import AgentRegistry
 from app.infra.settings import get_settings
+from app.scenario.truman_world.rules import load_world_config
 from app.sim.context import DEFAULT_WORLD_START_TIME
 from app.scenario.truman_world.types import build_scenario_agent_profile
 from app.store.models import Agent, Location, Relationship
@@ -16,99 +17,17 @@ if TYPE_CHECKING:
     from app.store.models import SimulationRun
 
 
-# =============================================================================
-# 地点定义：场景静态配置
-# =============================================================================
+# 加载世界配置
+_WORLD_CONFIG = load_world_config()
 
-LOCATION_CONFIGS = [
-    {
-        "id_suffix": "plaza",
-        "name": "小镇广场",
-        "location_type": "plaza",
-        "capacity": 10,
-        "x": 1,
-        "y": 2,
-        "attributes": {"kind": "social"},
-    },
-    {
-        "id_suffix": "apartment",
-        "name": "海滨公寓",
-        "location_type": "home",
-        "capacity": 3,
-        "x": 0,
-        "y": 0,
-        "attributes": {"kind": "private"},
-    },
-    {
-        "id_suffix": "office",
-        "name": "港务办公室",
-        "location_type": "office",
-        "capacity": 6,
-        "x": 3,
-        "y": 0,
-        "attributes": {"kind": "work"},
-    },
-    {
-        "id_suffix": "cafe",
-        "name": "街角咖啡馆",
-        "location_type": "cafe",
-        "capacity": 6,
-        "x": 2,
-        "y": 1,
-        "attributes": {"kind": "work"},
-    },
-    {
-        "id_suffix": "hospital",
-        "name": "海湾医院",
-        "location_type": "hospital",
-        "capacity": 8,
-        "x": 4,
-        "y": 2,
-        "attributes": {"kind": "work"},
-    },
-    {
-        "id_suffix": "bachelor-apt",
-        "name": "镇中公寓",
-        "location_type": "home",
-        "capacity": 6,
-        "x": 0,
-        "y": 2,
-        "attributes": {"kind": "private"},
-    },
-    {
-        "id_suffix": "mall",
-        "name": "港湾商场",
-        "location_type": "shop",
-        "capacity": 12,
-        "x": 3,
-        "y": 2,
-        "attributes": {"kind": "commercial"},
-    },
-]
+# 地点定义：从 YAML 配置加载
+LOCATION_CONFIGS = _WORLD_CONFIG.get("locations", [])
 
-# 地点 ID 映射：agent.yml 中的 home/workplace 值 -> location id suffix
-LOCATION_ID_MAP = {
-    "apartment": "apartment",
-    "demo_home": "apartment",      # alias used in agent.yml
-    "bachelor_apt": "bachelor-apt",
-    "office": "office",
-    "harbor_office": "office",     # alias used in agent.yml
-    "cafe": "cafe",
-    "corner_cafe": "cafe",          # alias used in agent.yml
-    "hospital": "hospital",
-    "plaza": "plaza",
-    "mall": "mall",
-}
+# 地点 ID 映射：从 YAML 配置加载
+LOCATION_ID_MAP = _WORLD_CONFIG.get("location_id_map", {})
 
-# 职业中文映射（key 须与 agent.yml 中的 occupation 字段完全一致）
-OCCUPATION_NAMES: dict[str, str] = {
-    "insurance clerk": "保险文员",
-    "hospital staff": "医院职员",
-    "office coworker": "办公室同事",   # friend: occupation = office coworker
-    "barista": "咖啡师",
-    "shop regular": "常客",            # neighbor: occupation = shop regular
-    "resident": "居民",
-}
+# 职业中文映射：从 YAML 配置加载
+OCCUPATION_NAMES: dict[str, str] = _WORLD_CONFIG.get("occupation_names", {})
 
 # 工作描述映射
 WORK_DESCRIPTIONS: dict[str, str] = {

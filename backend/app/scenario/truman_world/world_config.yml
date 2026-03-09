@@ -1,6 +1,10 @@
 # TrumanWorld 世界常识配置
 # 这个文件定义了所有 agent 共享的世界知识
 
+# =============================================================================
+# 世界常识层（所有 agent 共享）
+# =============================================================================
+
 # 日常节律
 daily_rhythm:
   lunch_time: "11:30-13:30"
@@ -61,3 +65,116 @@ time_suggestions:
   afternoon: "下午，工作时间"
   evening: "傍晚，社交和休闲的时间"
   night: "夜晚，休息时间"
+
+# =============================================================================
+# 场景静态配置（场景初始化时使用）
+# =============================================================================
+
+# 地点定义
+locations:
+  - id_suffix: "plaza"
+    name: "小镇广场"
+    location_type: "plaza"
+    capacity: 10
+    x: 1
+    y: 2
+    attributes:
+      kind: "social"
+  - id_suffix: "apartment"
+    name: "海滨公寓"
+    location_type: "home"
+    capacity: 3
+    x: 0
+    y: 0
+    attributes:
+      kind: "private"
+  - id_suffix: "office"
+    name: "港务办公室"
+    location_type: "office"
+    capacity: 6
+    x: 3
+    y: 0
+    attributes:
+      kind: "work"
+  - id_suffix: "cafe"
+    name: "街角咖啡馆"
+    location_type: "cafe"
+    capacity: 6
+    x: 2
+    y: 1
+    attributes:
+      kind: "work"
+  - id_suffix: "hospital"
+    name: "海湾医院"
+    location_type: "hospital"
+    capacity: 8
+    x: 4
+    y: 2
+    attributes:
+      kind: "work"
+  - id_suffix: "bachelor-apt"
+    name: "镇中公寓"
+    location_type: "home"
+    capacity: 6
+    x: 0
+    y: 2
+    attributes:
+      kind: "private"
+  - id_suffix: "mall"
+    name: "港湾商场"
+    location_type: "shop"
+    capacity: 12
+    x: 3
+    y: 2
+    attributes:
+      kind: "commercial"
+
+# 地点 ID 映射：agent.yml 中的 home/workplace 值 -> location id suffix
+location_id_map:
+  apartment: "apartment"
+  demo_home: "apartment"
+  bachelor_apt: "bachelor-apt"
+  office: "office"
+  harbor_office: "office"
+  cafe: "cafe"
+  corner_cafe: "cafe"
+  hospital: "hospital"
+  plaza: "plaza"
+  mall: "mall"
+
+# 职业中文映射
+occupation_names:
+  insurance clerk: "保险文员"
+  hospital staff: "医院职员"
+  office coworker: "办公室同事"
+  barista: "咖啡师"
+  shop regular: "常客"
+  resident: "居民"
+
+# =============================================================================
+# 工作配置（特定角色的工作安排）
+# =============================================================================
+
+# 轮班工作配置
+shift_work_config:
+  # 轮班类型定义
+  shift_types:
+    morning:
+      name: "早班"
+      start_hour: 6
+      end_hour: 14
+    evening:
+      name: "晚班"
+      start_hour: 14
+      end_hour: 22
+  
+  # 默认轮班安排（按星期几）
+  # 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday
+  default_schedule:
+    0: "morning"   # Monday
+    1: "evening"   # Tuesday
+    2: "morning"   # Wednesday
+    3: "evening"   # Thursday
+    4: "morning"   # Friday
+    5: null        # Saturday - rest
+    6: null        # Sunday - rest
