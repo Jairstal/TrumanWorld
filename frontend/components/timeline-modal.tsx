@@ -339,6 +339,8 @@ export function TimelineModal({ isOpen, onClose, runId }: TimelineModalProps) {
                     tick={Number(tick)}
                     events={events}
                     tickMinutes={timeline?.run_info?.tick_minutes ?? 5}
+                    currentTick={timeline?.run_info?.current_tick ?? 0}
+                    currentWorldTimeIso={timeline?.run_info?.current_world_time_iso}
                   />
                 ))}
               </div>
@@ -358,9 +360,11 @@ interface TickGroupProps {
   tick: number;
   events: TimelineEvent[];
   tickMinutes: number;
+  currentTick: number;
+  currentWorldTimeIso?: string;
 }
 
-function TickGroup({ tick, events, tickMinutes }: TickGroupProps) {
+function TickGroup({ tick, events, tickMinutes, currentTick, currentWorldTimeIso }: TickGroupProps) {
   return (
     <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
       <div className="mb-3 flex items-center gap-3">
@@ -368,7 +372,7 @@ function TickGroup({ tick, events, tickMinutes }: TickGroupProps) {
           Tick {tick}
         </span>
         <span className="text-xs text-slate-400">
-          {simDayLabel(tick, tickMinutes)} · {events.length} 个事件
+          {tickToSimDayTime(tick, tickMinutes, currentTick, currentWorldTimeIso)} · {events.length} 个事件
         </span>
       </div>
       <div className="space-y-2">

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 from app.agent.runtime import RuntimeContext
 from app.scenario.base import Scenario
 from app.scenario.types import get_agent_config_id, get_scenario_guidance, get_world_role
+from app.sim.llm_call_collector import LlmCallCollector
 from app.sim.agent_snapshot_builder import build_agent_recent_events
 from app.sim.runner import SimulationRunner, TickResult
 from app.sim.runtime_context_utils import (
@@ -16,7 +16,6 @@ from app.sim.runtime_context_utils import (
 )
 from app.sim.world import WorldState
 from app.sim.world_queries import find_nearby_agent, get_agent
-from app.store.models import LlmCall
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +24,7 @@ if TYPE_CHECKING:
     from app.sim.action_resolver import ActionIntent
     from app.sim.context import ContextBuilder
     from app.sim.types import AgentDecisionSnapshot
-    from app.store.models import Agent
+    from app.store.models import Agent, LlmCall
     from app.store.repositories import AgentRepository
 
 
@@ -96,7 +95,7 @@ class TickOrchestrator:
         run_id: str | None = None,
         tick_no: int = 0,
     ) -> tuple[list["ActionIntent"], list[LlmCall]]:
-        llm_records: list[LlmCall] = []
+        collector = LlmCallCollector()
 
         async def decide_for_agent(agent_snapshot: AgentDecisionSnapshot) -> ActionIntent | None:
             agent_id = agent_snapshot.id
@@ -112,31 +111,6 @@ class TickOrchestrator:
             if run_id is not None:
                 db_agent_id = agent_snapshot.id
 
-                def on_llm_call(
-                    agent_id: str,
-                    task_type: str,
-                    usage: dict | None,
-                    total_cost_usd: float | None,
-                    duration_ms: int,
-                ) -> None:
-                    llm_records.append(
-                        LlmCall(
-                            id=str(uuid4()),
-                            run_id=run_id,
-                            agent_id=db_agent_id,
-                            task_type=task_type,
-                            tick_no=tick_no,
-                            input_tokens=int((usage or {}).get("input_tokens", 0)),
-                            output_tokens=int((usage or {}).get("output_tokens", 0)),
-                            cache_read_tokens=int((usage or {}).get("cache_read_input_tokens", 0)),
-                            cache_creation_tokens=int(
-                                (usage or {}).get("cache_creation_input_tokens", 0)
-                            ),
-                            total_cost_usd=total_cost_usd,
-                            duration_ms=duration_ms or 0,
-                        )
-                    )
-
                 from app.agent.memory_cache import MemoryCache
 
                 memory_cache = (
@@ -149,7 +123,11 @@ class TickOrchestrator:
                     db_engine=engine,
                     run_id=run_id,
                     enable_memory_tools=True,
-                    on_llm_call=on_llm_call,
+                    on_llm_call=collector.build_callback(
+                        run_id=run_id,
+                        db_agent_id=db_agent_id,
+                        tick_no=tick_no,
+                    ),
                     memory_cache=memory_cache,
                 )
 
@@ -175,7 +153,7 @@ class TickOrchestrator:
 
         results = await asyncio.gather(*[decide_for_agent(snapshot) for snapshot in agent_data])
         intents = [result for result in results if result is not None]
-        return intents, llm_records
+        return intents, collector.records
 
     async def decide_intent_for_agent(
         self,
