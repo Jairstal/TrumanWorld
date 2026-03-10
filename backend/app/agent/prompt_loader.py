@@ -28,6 +28,48 @@ class PromptLoader:
             "",
         ]
 
+        # 渲染日程引导（如果有 daily_schedule）
+        daily_schedule = context.get("daily_schedule")
+        time_period = context.get("time_period")
+        if daily_schedule and isinstance(daily_schedule, dict):
+            lines.append("# 我的日程计划")
+            lines.append(
+                "以下是我今天的日程安排。我应当主动根据当前时间段选择符合计划的行为，不要仅仅因为不确定就选 rest。"
+            )
+            lines.append("")
+            period_label = {
+                "morning": "早晨",
+                "late_morning": "上午",
+                "noon": "中午",
+                "afternoon": "下午",
+                "evening": "傍晚",
+                "night": "夜间",
+            }
+            plan_label = {
+                "work": "工作",
+                "talk": "社交",
+                "socialize": "社交",
+                "wander": "闲逛",
+                "rest": "休息",
+                "go_home": "回家",
+                "commute": "通勤",
+                "prepare_day": "准备一天",
+                "home": "在家",
+            }
+            for key in ("morning", "daytime", "evening"):
+                val = daily_schedule.get(key)
+                if val:
+                    period_zh = period_label.get(key, key)
+                    val_zh = plan_label.get(str(val), str(val))
+                    is_current = (
+                        (key == "morning" and time_period in {"morning", "late_morning"})
+                        or (key == "daytime" and time_period in {"noon", "afternoon"})
+                        or (key == "evening" and time_period == "evening")
+                    )
+                    marker = " (← 当前时段)" if is_current else ""
+                    lines.append(f"- {period_zh}: {val_zh}{marker}")
+            lines.append("")
+
         # 渲染对话历史（如果有）
         recent_events = context.get("recent_events", [])
         if recent_events:

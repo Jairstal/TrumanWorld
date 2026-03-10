@@ -25,7 +25,7 @@ from app.store.repositories import (
 from app.store.models import Event, Memory
 
 if TYPE_CHECKING:
-    pass
+    from app.store.models import Agent
 
 
 class PersistenceManager:
@@ -65,12 +65,15 @@ class PersistenceManager:
         Returns:
             List of persisted events for further processing
         """
-        # Update agent locations
+        # Update agent locations and sync goal with schedule
         agents = await self.agent_repo.list_for_run(run_id)
         for agent in agents:
             state = world.get_agent(agent.id)
             if state is not None:
                 agent.current_location_id = state.location_id
+                scheduled_goal = _compute_goal_for_schedule(world, agent)
+                if scheduled_goal is not None and agent.current_goal != scheduled_goal:
+                    agent.current_goal = scheduled_goal
         await self.session.commit()
 
         # Update tick number
@@ -338,3 +341,50 @@ class PersistenceManager:
                 event.target_agent_id,
             )
         ]
+
+
+# ─── Schedule-based goal helpers ─────────────────────────────────────────────
+
+# Maps time-period values from WorldState._time_period() to current_plan keys
+_TIME_PERIOD_TO_PLAN_KEY: dict[str, str] = {
+    "morning": "morning",
+    "late_morning": "morning",
+    "noon": "daytime",
+    "afternoon": "daytime",
+    "evening": "evening",
+}
+
+# Plan values that should be normalised to a concrete action goal
+_PLAN_VALUE_NORMALISE: dict[str, str] = {
+    "socialize": "talk",
+    "prepare_day": "rest",
+    "home": "go_home",
+}
+
+
+def _compute_goal_for_schedule(world: "WorldState", agent: "Agent") -> str | None:
+    """Compute the agent's goal for the current time period from its daily plan.
+
+    Returns None when no update is needed (e.g. unrecognised time period or
+    empty plan), so callers can skip the write.
+    """
+    plan: dict = agent.current_plan or {}
+    if not plan:
+        return None
+
+    time_period: str = world._time_period()
+
+    if time_period == "night":
+        # Night time: agents should be resting
+        return "rest"
+
+    plan_key = _TIME_PERIOD_TO_PLAN_KEY.get(time_period)
+    if plan_key is None:
+        return None
+
+    raw_goal: str | None = plan.get(plan_key)
+    if raw_goal is None:
+        return None
+
+    # Normalise plan values to recognised goal identifiers
+    return _PLAN_VALUE_NORMALISE.get(raw_goal, raw_goal)

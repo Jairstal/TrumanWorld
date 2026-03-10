@@ -22,18 +22,31 @@ def build_agent_world_context(
     world_role: str | None = None,
     director_guidance: DirectorGuidance | None = None,
     workplace_location_id: str | None = None,
+    current_plan: dict | None = None,
 ) -> RuntimeWorldContext:
+    # Identify social locations (plaza / cafe) for talk-goal navigation
+    social_location_ids = [
+        loc_id
+        for loc_id, loc in world.locations.items()
+        if loc.location_type in {"plaza", "cafe"}
+    ]
+
     context = {
         "current_goal": current_goal,
         "current_location_id": current_location_id,
         "home_location_id": home_location_id,
         "workplace_location_id": workplace_location_id,
         "known_location_ids": sorted(world.locations.keys()),
+        "social_location_ids": social_location_ids,
         "nearby_agent_id": nearby_agent_id,
         "self_status": current_status or {},
         "truman_suspicion_score": truman_suspicion_score,
         **world.time_context(),
     }
+
+    # Inject daily schedule so LLM can self-determine appropriate behavior per time period
+    if current_plan:
+        context["daily_schedule"] = current_plan
 
     if current_location_id:
         location = get_location(world, current_location_id)

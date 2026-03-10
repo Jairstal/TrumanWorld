@@ -174,6 +174,7 @@ async def build_agent_snapshots(
                 profile=profile,
                 recent_events=agent_recent_events.get(agent.id, []),
                 memory_cache=agent_memory_cache.get(agent.id),
+                current_plan=agent.current_plan or None,
             )
         )
 

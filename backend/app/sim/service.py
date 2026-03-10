@@ -324,6 +324,7 @@ class SimulationService:
                 truman_suspicion_score=truman_suspicion_score,
                 runtime_ctx=runtime_ctx,
                 workplace_location_id=workplace_location_id,
+                current_plan=agent_snapshot.current_plan,
             )
 
         # Execute all agent decisions in PARALLEL
@@ -418,6 +419,7 @@ class SimulationService:
         truman_suspicion_score: float,
         runtime_ctx=None,
         workplace_location_id: str | None = None,
+        current_plan: dict | None = None,
     ) -> ActionIntent:
         nearby_agent_id = (
             find_nearby_agent(world, agent_id, current_location_id)
@@ -440,6 +442,7 @@ class SimulationService:
                     world_role=get_world_role(profile),
                     director_guidance=director_guidance,
                     workplace_location_id=workplace_location_id,
+                    current_plan=current_plan,
                 ),
                 memory={"recent": []},
                 event={},

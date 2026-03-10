@@ -17,6 +17,8 @@ class AgentDecisionSnapshot:
     recent_events: list[dict[str, Any]]
     # 预加载的记忆缓存，用于 MCP 工具查询（避免在 anyio task 中创建 DB session）
     memory_cache: dict[str, list[dict[str, Any]]] | None = None
+    # Agent 的日程计划，用于传递给 LLM 做上下文感知决策
+    current_plan: dict[str, Any] | None = None
 
 
 class NearbyAgentContext(TypedDict):
@@ -40,3 +42,4 @@ class RuntimeWorldContext(DirectorGuidance, total=False):
     tick_no: int
     tick_minutes: int
     world_time: str
+    daily_schedule: dict[str, str]
