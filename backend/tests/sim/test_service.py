@@ -10,7 +10,13 @@ from app.scenario.types import ScenarioGuidance
 from app.sim.action_resolver import ActionIntent
 from app.sim.service import SimulationService
 from app.store.models import Agent, Location, SimulationRun
-from app.store.repositories import AgentRepository, DirectorMemoryRepository, EventRepository, LlmCallRepository, RunRepository
+from app.store.repositories import (
+    AgentRepository,
+    DirectorMemoryRepository,
+    EventRepository,
+    LlmCallRepository,
+    RunRepository,
+)
 
 
 class FailingDecisionProvider(AgentDecisionProvider):
@@ -376,7 +382,11 @@ async def test_simulation_service_uses_world_role_and_clock_in_runtime_context(
 @pytest.mark.asyncio
 async def test_simulation_service_fallback_rests_for_unknown_move_target(db_session):
     run = SimulationRun(
-        id="run-service-invalid-move", name="service", status="running", current_tick=0, tick_minutes=5
+        id="run-service-invalid-move",
+        name="service",
+        status="running",
+        current_tick=0,
+        tick_minutes=5,
     )
     home = Location(
         id="loc-home-invalid-move",
@@ -1018,7 +1028,9 @@ async def test_prepare_intents_collects_llm_records_when_on_llm_call_set(db_sess
 
     # 准备 DB 数据
     run_id = "run-token-track-1"
-    run = SimulationRun(id=run_id, name="token-track", status="running", current_tick=3, tick_minutes=5)
+    run = SimulationRun(
+        id=run_id, name="token-track", status="running", current_tick=3, tick_minutes=5
+    )
     agent = Agent(
         id="agent-tt-1",
         run_id=run_id,
@@ -1046,8 +1058,11 @@ async def test_prepare_intents_collects_llm_records_when_on_llm_call_set(db_sess
 
     # 构建 WorldState 和 AgentDecisionSnapshot
     from datetime import datetime, timezone
+
     world = WorldState(current_time=datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc))
-    world.agents["agent-tt-1"] = type("S", (), {"id": "agent-tt-1", "status": {}, "location_id": "loc-1"})()
+    world.agents["agent-tt-1"] = type(
+        "S", (), {"id": "agent-tt-1", "status": {}, "location_id": "loc-1"}
+    )()
 
     snapshot = AgentDecisionSnapshot(
         id="agent-tt-1",
@@ -1072,6 +1087,7 @@ async def test_prepare_intents_collects_llm_records_when_on_llm_call_set(db_sess
     assert len(intents) == 1
 
     import shutil
+
     shutil.rmtree(tmp_path)
 
 
@@ -1094,7 +1110,9 @@ async def test_run_tick_isolated_persists_llm_calls(db_session):
     # agent_config_id 与 agent dir 名称一致，方便 AgentRuntime._load_agent 查找
     agent_config_id = "alice-llm"
     async with AsyncSession(engine, expire_on_commit=False) as session:
-        run = SimulationRun(id=run_id, name="llm-persist", status="running", current_tick=0, tick_minutes=5)
+        run = SimulationRun(
+            id=run_id, name="llm-persist", status="running", current_tick=0, tick_minutes=5
+        )
         loc = Location(id="loc-llm-1", run_id=run_id, name="Home", location_type="home", capacity=2)
         agent = Agent(
             id="agent-llm-p1",

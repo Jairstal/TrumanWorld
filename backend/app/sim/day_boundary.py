@@ -33,6 +33,7 @@ MEMORY_TYPE_DAILY_REFLECTION = "daily_reflection"
 
 # ── 触发检测 ─────────────────────────────────────────────────────────────────
 
+
 def should_run_planner(world: "WorldState") -> bool:
     """Return True when the world just entered morning (06:00 hour)."""
     return world.current_time.hour == 6 and world.current_time.minute < world.tick_minutes
@@ -86,6 +87,7 @@ async def has_reflection_for_today(
 
 
 # ── 上下文构建辅助 ────────────────────────────────────────────────────────────
+
 
 def _build_basic_world_context(world: "WorldState") -> dict:
     """Build minimal world context dict for planner/reflector prompts."""
@@ -158,6 +160,7 @@ async def _load_today_events(
 
 # ── Planner 执行 ──────────────────────────────────────────────────────────────
 
+
 async def run_morning_planning(
     *,
     run_id: str,
@@ -229,19 +232,25 @@ async def run_morning_planning(
                 write_session.add(agent_obj)
 
             # Write a long_term memory recording the plan
-            content = f"今日计划：早晨={new_plan.get('morning','?')}，白天={new_plan.get('daytime','?')}，傍晚={new_plan.get('evening','?')}。{intention}"
-            memories_to_create.append(Memory(
-                id=str(uuid4()),
-                run_id=run_id,
-                agent_id=agent_id,
-                tick_no=tick_no,
-                memory_type=MEMORY_TYPE_DAILY_PLAN,
-                memory_category="long_term",
-                content=content,
-                summary=intention or f"今日计划已制定（{today.isoformat()}）",
-                importance=0.6,
-                metadata_json={"plan": new_plan, "intention": intention, "day": today.isoformat()},
-            ))
+            content = f"今日计划：早晨={new_plan.get('morning', '?')}，白天={new_plan.get('daytime', '?')}，傍晚={new_plan.get('evening', '?')}。{intention}"
+            memories_to_create.append(
+                Memory(
+                    id=str(uuid4()),
+                    run_id=run_id,
+                    agent_id=agent_id,
+                    tick_no=tick_no,
+                    memory_type=MEMORY_TYPE_DAILY_PLAN,
+                    memory_category="long_term",
+                    content=content,
+                    summary=intention or f"今日计划已制定（{today.isoformat()}）",
+                    importance=0.6,
+                    metadata_json={
+                        "plan": new_plan,
+                        "intention": intention,
+                        "day": today.isoformat(),
+                    },
+                )
+            )
             logger.info(f"[day_boundary] Plan for {agent_name}: {new_plan} | {intention}")
 
         if memories_to_create:
@@ -250,6 +259,7 @@ async def run_morning_planning(
 
 
 # ── Reflector 执行 ────────────────────────────────────────────────────────────
+
 
 async def run_evening_reflection(
     *,
@@ -318,25 +328,29 @@ async def run_evening_reflection(
             content = reflection_text or f"今天已结束。（{today.isoformat()}）"
             summary = tomorrow or f"今日总结（{today.isoformat()}）"
 
-            memories_to_create.append(Memory(
-                id=str(uuid4()),
-                run_id=run_id,
-                agent_id=agent_id,
-                tick_no=tick_no,
-                memory_type=MEMORY_TYPE_DAILY_REFLECTION,
-                memory_category="long_term",
-                content=content,
-                summary=summary,
-                importance=0.7,
-                emotional_valence=_mood_to_valence(mood),
-                metadata_json={
-                    "mood": mood,
-                    "key_person": key_person,
-                    "tomorrow_intention": tomorrow,
-                    "day": today.isoformat(),
-                },
-            ))
-            logger.info(f"[day_boundary] Reflection for {agent_name}: mood={mood}, key={key_person}")
+            memories_to_create.append(
+                Memory(
+                    id=str(uuid4()),
+                    run_id=run_id,
+                    agent_id=agent_id,
+                    tick_no=tick_no,
+                    memory_type=MEMORY_TYPE_DAILY_REFLECTION,
+                    memory_category="long_term",
+                    content=content,
+                    summary=summary,
+                    importance=0.7,
+                    emotional_valence=_mood_to_valence(mood),
+                    metadata_json={
+                        "mood": mood,
+                        "key_person": key_person,
+                        "tomorrow_intention": tomorrow,
+                        "day": today.isoformat(),
+                    },
+                )
+            )
+            logger.info(
+                f"[day_boundary] Reflection for {agent_name}: mood={mood}, key={key_person}"
+            )
 
         if memories_to_create:
             await memory_repo.create_many(memories_to_create)

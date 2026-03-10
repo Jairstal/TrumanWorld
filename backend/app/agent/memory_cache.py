@@ -146,10 +146,10 @@ class MemoryCache:
         lines = ["找到以下记忆："]
         for i, mem in enumerate(memories, 1):
             tick_info = f"Tick {mem.get('tick_no', '?')}"
-            category_info = mem.get('memory_category', 'unknown')
-            summary = mem.get('summary') or mem.get('content', '')[:50]
+            category_info = mem.get("memory_category", "unknown")
+            summary = mem.get("summary") or mem.get("content", "")[:50]
             lines.append(f"{i}. [{tick_info}] [{category_info}] {summary}")
-            if mem.get('related_agent_name'):
+            if mem.get("related_agent_name"):
                 lines.append(f"   相关人物: {mem['related_agent_name']}")
 
         return "\n".join(lines)

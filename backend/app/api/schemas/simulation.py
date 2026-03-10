@@ -194,6 +194,7 @@ class WorldDailyStatsResponse(BaseModel):
 
 class WorldHealthMetricsConfig(BaseModel):
     """Health metrics evaluation baselines, loaded from world_config.yml."""
+
     # Continuity score
     continuity_penalty_factor: float = 200.0
     continuity_warning_threshold: float = 0.2
@@ -253,4 +254,6 @@ class WorldSnapshotResponse(BaseModel):
     recent_events: list[WorldEventResponse]
     director_stats: WorldDirectorStatsResponse = Field(default_factory=WorldDirectorStatsResponse)
     daily_stats: WorldDailyStatsResponse = Field(default_factory=WorldDailyStatsResponse)
-    health_metrics_config: WorldHealthMetricsConfig = Field(default_factory=WorldHealthMetricsConfig)
+    health_metrics_config: WorldHealthMetricsConfig = Field(
+        default_factory=WorldHealthMetricsConfig
+    )

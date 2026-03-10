@@ -34,7 +34,7 @@ _WORLD_CONFIG_CACHE: dict[str, Any] | None = None
 
 def load_world_config() -> dict[str, Any]:
     """Load world configuration from YAML file.
-    
+
     Uses caching to avoid repeated file reads.
     This is the public API for accessing world configuration.
     """
@@ -43,7 +43,6 @@ def load_world_config() -> dict[str, Any]:
         with open(_WORLD_CONFIG_PATH, "r", encoding="utf-8") as f:
             _WORLD_CONFIG_CACHE = yaml.safe_load(f)
     return _WORLD_CONFIG_CACHE
-
 
 
 def build_perception_context(
@@ -134,10 +133,10 @@ def build_role_context(world_role: str, world: dict[str, Any]) -> dict[str, Any]
 
 def build_world_common_knowledge() -> dict[str, Any]:
     """Build world common knowledge shared by all agents in TrumanWorld.
-    
+
     This defines the shared understanding of how the world works,
     including daily rhythms, location purposes, and social norms.
-    
+
     Configuration is loaded from world_config.yml for easy management.
     """
     config = load_world_config()
@@ -178,9 +177,7 @@ def build_scene_guidance(world_role: str, world: dict[str, Any]) -> dict[str, An
     manual_goals = {"gather", "activity", "shutdown", "weather_change"}
     if scene_goal in manual_goals:
         base_guidance["is_advisory"] = False
-        base_guidance["action_hint"] = _build_action_hint_for_manual_goal(
-            scene_goal, guidance
-        )
+        base_guidance["action_hint"] = _build_action_hint_for_manual_goal(scene_goal, guidance)
     else:
         base_guidance["is_advisory"] = True
 
@@ -202,10 +199,7 @@ def _build_action_hint_for_manual_goal(scene_goal: str, guidance: dict[str, Any]
                 f"如果方便，考虑前往指定地点参与。"
                 f"到达后可以与周围的人自然互动。"
             )
-        return (
-            f"收到广播消息: '{message_hint}'。"
-            f"留意周围情况，保持自然日常状态。"
-        )
+        return f"收到广播消息: '{message_hint}'。留意周围情况，保持自然日常状态。"
 
     if scene_goal == "activity":
         if location_hint:
@@ -214,27 +208,15 @@ def _build_action_hint_for_manual_goal(scene_goal: str, guidance: dict[str, Any]
                 f"如果在附近或感兴趣，可以前往参与。"
                 f"保持轻松自然的参与态度。"
             )
-        return (
-            f"有活动举办: '{message_hint}'。"
-            f"可以根据自己的情况决定是否参与。"
-        )
+        return f"有活动举办: '{message_hint}'。可以根据自己的情况决定是否参与。"
 
     if scene_goal == "shutdown":
         if location_hint:
-            return (
-                f"地点关闭通知: '{message_hint}'。"
-                f"请避开该地点，选择其他合适的去处。"
-            )
-        return (
-            f"地点关闭通知: '{message_hint}'。"
-            f"请注意调整行程安排。"
-        )
+            return f"地点关闭通知: '{message_hint}'。请避开该地点，选择其他合适的去处。"
+        return f"地点关闭通知: '{message_hint}'。请注意调整行程安排。"
 
     if scene_goal == "weather_change":
-        return (
-            f"天气变化: '{message_hint}'。"
-            f"请注意天气影响，调整户外活动计划。"
-        )
+        return f"天气变化: '{message_hint}'。请注意天气影响，调整户外活动计划。"
 
     return "请根据情况做出合适的反应。"
 

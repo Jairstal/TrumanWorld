@@ -27,9 +27,7 @@ def build_agent_world_context(
 ) -> RuntimeWorldContext:
     # Identify social locations (plaza / cafe) for talk-goal navigation
     social_location_ids = [
-        loc_id
-        for loc_id, loc in world.locations.items()
-        if loc.location_type in {"plaza", "cafe"}
+        loc_id for loc_id, loc in world.locations.items() if loc.location_type in {"plaza", "cafe"}
     ]
 
     context = {

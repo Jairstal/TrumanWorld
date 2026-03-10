@@ -66,7 +66,9 @@ def pool() -> AgentConnectionPool:
     return AgentConnectionPool(settings, max_connections=2, idle_timeout_seconds=10)
 
 
-def _pooled(agent_id: str, client: FakeClient, *, last_used: float, in_use: bool = False) -> PooledClient:
+def _pooled(
+    agent_id: str, client: FakeClient, *, last_used: float, in_use: bool = False
+) -> PooledClient:
     return PooledClient(
         agent_id=agent_id,
         client=client,  # type: ignore[arg-type]

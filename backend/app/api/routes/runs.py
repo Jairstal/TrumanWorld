@@ -404,7 +404,7 @@ async def get_timeline(
     tick_from: int | None = None,
     tick_to: int | None = None,
     world_datetime_from: str | None = None,  # YYYY-MM-DDTHH:MM 格式，模拟世界日期时间起始
-    world_datetime_to: str | None = None,    # YYYY-MM-DDTHH:MM 格式，模拟世界日期时间结束
+    world_datetime_to: str | None = None,  # YYYY-MM-DDTHH:MM 格式，模拟世界日期时间结束
     event_type: str | None = None,
     agent_id: str | None = None,
     limit: int = 2000,
@@ -505,7 +505,9 @@ async def get_timeline(
         if event.actor_agent_id and "actor_name" not in payload:
             payload["actor_name"] = agent_name_map.get(event.actor_agent_id, event.actor_agent_id)
         if event.target_agent_id and "target_name" not in payload:
-            payload["target_name"] = agent_name_map.get(event.target_agent_id, event.target_agent_id)
+            payload["target_name"] = agent_name_map.get(
+                event.target_agent_id, event.target_agent_id
+            )
         if event.location_id and "location_name" not in payload:
             payload["location_name"] = location_name_map.get(event.location_id, event.location_id)
         return payload
@@ -731,7 +733,9 @@ def _build_health_metrics_config() -> WorldHealthMetricsConfig:
             continuity_warning_threshold=cont.get("warning_threshold", 0.2),
             continuity_trend_down_threshold=cont.get("trend_down_threshold", 0.15),
             continuity_trend_stable_threshold=cont.get("trend_stable_threshold", 0.05),
-            social_baseline_talks_per_person_per_day=soc.get("baseline_talks_per_person_per_day", 20.0),
+            social_baseline_talks_per_person_per_day=soc.get(
+                "baseline_talks_per_person_per_day", 20.0
+            ),
             social_trend_up_threshold=soc.get("trend_up_threshold", 10.0),
             social_trend_stable_threshold=soc.get("trend_stable_threshold", 3.0),
             heat_normalization_baseline=heat.get("normalization_baseline", 30.0),
@@ -860,7 +864,7 @@ async def get_world_snapshot(
     all_time_event_counts = await event_repo.count_events_by_type(
         str(run_id),
         tick_from=None,  # No tick_from limit - get all events from the beginning
-        tick_to=None,    # No tick_to limit - get all events up to now
+        tick_to=None,  # No tick_to limit - get all events up to now
         event_types=["talk", "move", "move_rejected", "talk_rejected"],
     )
     # Get all-time token consumption totals
@@ -913,7 +917,8 @@ async def get_world_snapshot(
         daily_stats=WorldDailyStatsResponse(
             talk_count=all_time_event_counts.get("talk", 0),
             move_count=all_time_event_counts.get("move", 0),
-            rejection_count=all_time_event_counts.get("move_rejected", 0) + all_time_event_counts.get("talk_rejected", 0),
+            rejection_count=all_time_event_counts.get("move_rejected", 0)
+            + all_time_event_counts.get("talk_rejected", 0),
             total_input_tokens=token_totals.get("input_tokens", 0),
             total_output_tokens=token_totals.get("output_tokens", 0),
             total_cache_read_tokens=token_totals.get("cache_read_tokens", 0),
@@ -1003,7 +1008,15 @@ async def delete_run(
     # Delete related data in correct order (respecting foreign key constraints)
     # Order: relationships -> memories -> director_memories -> events -> llm_calls -> agents -> locations -> run
     from sqlalchemy import delete
-    from app.store.models import Agent, DirectorMemory, Event, Location, Memory, Relationship, LlmCall
+    from app.store.models import (
+        Agent,
+        DirectorMemory,
+        Event,
+        Location,
+        Memory,
+        Relationship,
+        LlmCall,
+    )
 
     run_id_str = str(run_id)
 

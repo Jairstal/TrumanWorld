@@ -27,7 +27,7 @@ WorldRole = str
 class AgentProfile(TypedDict, total=False):
     bio: str
     agent_config_id: str
-    world_role: str          # scenario-defined role name
+    world_role: str  # scenario-defined role name
     workplace: str
     workplace_location_id: str
     work_description: str

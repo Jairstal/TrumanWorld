@@ -127,11 +127,15 @@ async def test_ensure_run_started_warms_pool_and_registers_tick_callback(db_sess
 
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(run_lifecycle_module, "get_scheduler", lambda: scheduler)
-    monkeypatch.setattr(run_lifecycle_module, "get_settings", lambda: type("S", (), {"project_root": tmp_path})())
+    monkeypatch.setattr(
+        run_lifecycle_module, "get_settings", lambda: type("S", (), {"project_root": tmp_path})()
+    )
     monkeypatch.setattr(run_lifecycle_module, "get_connection_pool", lambda: _return_async(pool))
     monkeypatch.setattr(run_lifecycle_module, "AgentRegistry", FakeRegistry)
     monkeypatch.setattr(run_lifecycle_module, "AgentRuntime", FakeRuntime)
-    monkeypatch.setattr(run_lifecycle_module.SimulationService, "build_scenario", fake_build_scenario)
+    monkeypatch.setattr(
+        run_lifecycle_module.SimulationService, "build_scenario", fake_build_scenario
+    )
     monkeypatch.setattr(
         run_lifecycle_module.SimulationService,
         "create_for_scheduler",
@@ -149,7 +153,9 @@ async def test_ensure_run_started_warms_pool_and_registers_tick_callback(db_sess
     assert created_registry_paths == [tmp_path / "agents"]
     assert len(created_runtimes) == 1
     assert created_runtimes[0][1] is pool
-    assert pool.warmup_calls == [["run-lifecycle-2:spouse", "run-lifecycle-2:run-lifecycle-2-bob"]] or pool.warmup_calls == [["run-lifecycle-2:run-lifecycle-2-bob", "run-lifecycle-2:spouse"]]
+    assert pool.warmup_calls == [
+        ["run-lifecycle-2:spouse", "run-lifecycle-2:run-lifecycle-2-bob"]
+    ] or pool.warmup_calls == [["run-lifecycle-2:run-lifecycle-2-bob", "run-lifecycle-2:spouse"]]
     assert scheduler.started
     assert scheduler.started[0][0] == "run-lifecycle-2"
     assert scheduler.started[0][1] == 5.0
@@ -177,11 +183,15 @@ async def test_ensure_run_started_skips_warmup_when_run_has_no_agents(db_session
 
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(run_lifecycle_module, "get_scheduler", lambda: scheduler)
-    monkeypatch.setattr(run_lifecycle_module, "get_settings", lambda: type("S", (), {"project_root": tmp_path})())
+    monkeypatch.setattr(
+        run_lifecycle_module, "get_settings", lambda: type("S", (), {"project_root": tmp_path})()
+    )
     monkeypatch.setattr(run_lifecycle_module, "get_connection_pool", lambda: _return_async(pool))
     monkeypatch.setattr(run_lifecycle_module, "AgentRegistry", FakeRegistry)
     monkeypatch.setattr(run_lifecycle_module, "AgentRuntime", FakeRuntime)
-    monkeypatch.setattr(run_lifecycle_module.SimulationService, "build_scenario", lambda _: object())
+    monkeypatch.setattr(
+        run_lifecycle_module.SimulationService, "build_scenario", lambda _: object()
+    )
     monkeypatch.setattr(
         run_lifecycle_module.SimulationService,
         "create_for_scheduler",

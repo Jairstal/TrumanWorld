@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from typing import Any
 
 from app.director.agent import DirectorAgent, DirectorContext
@@ -27,7 +26,7 @@ class DirectorPlanner:
     - rejection_recovery: 处理连续被拒绝的场景
 
     实验性功能：当 director_agent_enabled=true 时，优先使用LLM智能决策
-    
+
     性能优化：
     - 导演决策与 tick 执行并行（非阻塞）
     - 可配置决策间隔（默认 5 tick）
@@ -125,13 +124,13 @@ class DirectorPlanner:
         recent_goals: set[str],
     ) -> DirectorPlan | None:
         """基于配置的干预计划构建（回退方案）
-        
+
         使用 director.yml 中的策略配置，通过 StrategyConditionEngine 评估条件。
         """
         primary_cast = self._pick_primary_cast(cast_agents)
         if primary_cast is None:
             return None
-        
+
         # 使用策略执行器评估配置的策略
         triggered = self._strategy_executor.evaluate_strategies(
             strategies=self._config.strategies,
@@ -140,15 +139,15 @@ class DirectorPlanner:
             truman_agent_id=assessment.truman_agent_id,
             primary_cast_id=primary_cast.id,
         )
-        
+
         if triggered is None:
             return None
-        
+
         # 构建 DirectorPlan
         plan_data = self._strategy_executor.build_plan_from_strategy(triggered)
         if plan_data is None:
             return None
-        
+
         return DirectorPlan(
             scene_goal=plan_data["scene_goal"],
             target_cast_ids=plan_data["target_cast_ids"],

@@ -101,7 +101,10 @@ class HeuristicDecisionProvider(AgentDecisionProvider):
 
         if isinstance(goal, str) and goal.startswith("move:"):
             target_location_id = goal.split(":", 1)[1].strip()
-            if isinstance(known_location_ids, list) and target_location_id not in known_location_ids:
+            if (
+                isinstance(known_location_ids, list)
+                and target_location_id not in known_location_ids
+            ):
                 return RuntimeDecision(action_type="rest")
             return RuntimeDecision(
                 action_type="move",
@@ -131,7 +134,12 @@ class HeuristicDecisionProvider(AgentDecisionProvider):
                     action_type="move",
                     target_location_id=str(workplace_location_id),
                 )
-            if workplace_location_id or current_location_type in {"office", "hospital", "cafe", "shop"}:
+            if workplace_location_id or current_location_type in {
+                "office",
+                "hospital",
+                "cafe",
+                "shop",
+            }:
                 return RuntimeDecision(action_type="work")
             return RuntimeDecision(action_type="rest")
 

@@ -46,7 +46,6 @@ class RunRepository:
         return result.scalars().all()
 
     async def update_status(self, run: SimulationRun, status: str) -> SimulationRun:
-        from datetime import UTC, datetime
         now = datetime.now(UTC)
         if status == "running":
             # 开始运行：记录本次启动时间（仅当之前未启动时才设置，避免恢复时重置）
@@ -63,7 +62,6 @@ class RunRepository:
         return run
 
     async def update_tick(self, run: SimulationRun, tick_no: int) -> SimulationRun:
-        from datetime import UTC, datetime
         run.current_tick = tick_no
         await self.session.commit()
         await self.session.refresh(run)
@@ -100,10 +98,12 @@ class RunRepository:
             if run.started_at is not None:
                 delta = int((now - run.started_at).total_seconds())
                 new_elapsed += max(0, delta)
-            run_updates.append({
-                "id": run.id,
-                "elapsed_seconds": new_elapsed,
-            })
+            run_updates.append(
+                {
+                    "id": run.id,
+                    "elapsed_seconds": new_elapsed,
+                }
+            )
 
         # Update: set was_running_before_restart=True, status='paused',
         # elapsed_seconds=accumulated, started_at=None
@@ -683,8 +683,12 @@ class LlmCallRepository:
         stmt = select(
             sql_func.coalesce(sql_func.sum(LlmCall.input_tokens), 0).label("input_tokens"),
             sql_func.coalesce(sql_func.sum(LlmCall.output_tokens), 0).label("output_tokens"),
-            sql_func.coalesce(sql_func.sum(LlmCall.cache_read_tokens), 0).label("cache_read_tokens"),
-            sql_func.coalesce(sql_func.sum(LlmCall.cache_creation_tokens), 0).label("cache_creation_tokens"),
+            sql_func.coalesce(sql_func.sum(LlmCall.cache_read_tokens), 0).label(
+                "cache_read_tokens"
+            ),
+            sql_func.coalesce(sql_func.sum(LlmCall.cache_creation_tokens), 0).label(
+                "cache_creation_tokens"
+            ),
         ).where(LlmCall.run_id == run_id)
         result = await self.session.execute(stmt)
         row = result.one()

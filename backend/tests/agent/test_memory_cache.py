@@ -1,9 +1,5 @@
 """Tests for MemoryCache - in-memory memory query for MCP tools."""
 
-from datetime import UTC, datetime, timedelta
-
-import pytest
-
 from app.agent.memory_cache import MemoryCache
 
 

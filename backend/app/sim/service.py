@@ -57,7 +57,6 @@ from app.store.repositories import (
     AgentRepository,
     DirectorMemoryRepository,
     EventRepository,
-    LlmCallRepository,
     LocationRepository,
     RunRepository,
 )
@@ -205,7 +204,9 @@ class SimulationService:
 
         # Phase 2: Prepare intents (SDK calls happen here, no active session)
         if not intents:
-            intents, llm_records = await self._prepare_intents_from_data(world, agent_data, engine, run_id, current_tick)
+            intents, llm_records = await self._prepare_intents_from_data(
+                world, agent_data, engine, run_id, current_tick
+            )
         else:
             llm_records = []
 
@@ -227,6 +228,7 @@ class SimulationService:
         if llm_records and engine is not None:
             from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
             from app.infra.logging import get_logger as _get_logger
+
             _logger = _get_logger(__name__)
             try:
                 async with _AsyncSession(engine, expire_on_commit=False) as llm_session:
@@ -257,6 +259,7 @@ class SimulationService:
                     )
             except Exception as _exc:  # noqa: BLE001
                 from app.infra.logging import get_logger as _get_logger
+
                 _get_logger(__name__).warning(f"Day boundary task failed: {_exc}")
 
         return result
@@ -315,7 +318,9 @@ class SimulationService:
                         input_tokens=int((usage or {}).get("input_tokens", 0)),
                         output_tokens=int((usage or {}).get("output_tokens", 0)),
                         cache_read_tokens=int((usage or {}).get("cache_read_input_tokens", 0)),
-                        cache_creation_tokens=int((usage or {}).get("cache_creation_input_tokens", 0)),
+                        cache_creation_tokens=int(
+                            (usage or {}).get("cache_creation_input_tokens", 0)
+                        ),
                         total_cost_usd=total_cost_usd,
                         duration_ms=duration_ms or 0,
                     )
@@ -623,6 +628,7 @@ class SimulationService:
         scenario_guidance = None
         if director_guidance:
             from app.scenario.types import ScenarioGuidance
+
             scenario_guidance = ScenarioGuidance(
                 scene_goal=director_guidance.get("director_scene_goal"),
                 priority=director_guidance.get("director_priority"),
@@ -684,9 +690,16 @@ class SimulationService:
                 )
             # 检查当前地点类型
             if world is not None:
-                current_location = world.get_location(current_location_id) if current_location_id else None
+                current_location = (
+                    world.get_location(current_location_id) if current_location_id else None
+                )
                 current_location_type = current_location.location_type if current_location else None
-                if workplace_location_id or current_location_type in {"office", "hospital", "cafe", "shop"}:
+                if workplace_location_id or current_location_type in {
+                    "office",
+                    "hospital",
+                    "cafe",
+                    "shop",
+                }:
                     return ActionIntent(agent_id=agent_id, action_type="work")
             elif workplace_location_id:
                 return ActionIntent(agent_id=agent_id, action_type="work")

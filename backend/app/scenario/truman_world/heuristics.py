@@ -64,15 +64,15 @@ def _handle_shift_work(
     home_location_id: str | None,
 ) -> RuntimeDecision | None:
     """Handle shift-based work schedule (configured in world_config.yml).
-    
+
     Schedule is loaded from YAML configuration.
     """
     hour = world.get("hour", 12)
     weekday = world.get("weekday", 0)  # 0=Monday, 6=Sunday
-    
+
     # Get today's shift from config
     today_shift = _DEFAULT_SCHEDULE.get(str(weekday))
-    
+
     # Weekend or rest day
     if today_shift is None:
         if current_location_id and home_location_id and current_location_id != home_location_id:
@@ -80,16 +80,16 @@ def _handle_shift_work(
                 action_type=ACTION_MOVE, target_location_id=str(home_location_id)
             )
         return RuntimeDecision(action_type="rest")
-    
+
     # Get shift hours from config
     shift_config = _SHIFT_TYPES.get(today_shift, {})
     start_hour = shift_config.get("start_hour", 6)
     end_hour = shift_config.get("end_hour", 14)
-    
+
     # Only make decisions during work hours range (6:00 - 22:00)
     if hour < 6 or hour >= 22:
         return None
-    
+
     # Before shift: rest at home
     if hour < start_hour:
         if current_location_id and home_location_id and current_location_id != home_location_id:
@@ -97,7 +97,7 @@ def _handle_shift_work(
                 action_type=ACTION_MOVE, target_location_id=str(home_location_id)
             )
         return RuntimeDecision(action_type="rest")
-    
+
     # After shift: rest at home
     if hour >= end_hour:
         if current_location_id and home_location_id and current_location_id != home_location_id:
@@ -105,12 +105,12 @@ def _handle_shift_work(
                 action_type=ACTION_MOVE, target_location_id=str(home_location_id)
             )
         return RuntimeDecision(action_type="rest")
-    
+
     # During shift hours: go to workplace if not already there
     workplace_location_id = world.get("workplace_location_id")
     if workplace_location_id and current_location_id != workplace_location_id:
         return RuntimeDecision(
             action_type=ACTION_MOVE, target_location_id=str(workplace_location_id)
         )
-    
+
     return None

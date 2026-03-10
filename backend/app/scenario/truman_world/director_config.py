@@ -31,6 +31,7 @@ _CONFIG_CACHE_TTL = 30  # 30 seconds cache TTL for development
 @dataclass
 class DirectorLLMConfig:
     """LLM configuration for Director Agent."""
+
     model: str | None = None
     temperature: float = 0.7
     max_tokens: int = 2000
@@ -41,6 +42,7 @@ class DirectorLLMConfig:
 @dataclass
 class DirectorPromptConfig:
     """Prompt configuration for Director Agent."""
+
     file: str = "director_prompt.md"
     recent_events_limit: int = 10
     recent_interventions_limit: int = 5
@@ -49,6 +51,7 @@ class DirectorPromptConfig:
 @dataclass
 class DirectorStrategy:
     """Strategy rule configuration."""
+
     name: str
     description: str
     condition: dict[str, Any]
@@ -59,6 +62,7 @@ class DirectorStrategy:
 @dataclass
 class DirectorEffectivenessConfig:
     """Effectiveness evaluation configuration."""
+
     evaluation_delay_ticks: int = 5
     metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
 
@@ -66,6 +70,7 @@ class DirectorEffectivenessConfig:
 @dataclass
 class DirectorConfig:
     """Complete Director Agent configuration."""
+
     enabled: bool = True
     llm: DirectorLLMConfig = field(default_factory=DirectorLLMConfig)
     decision_interval: int = 5  # 默认 5 个 tick 一次
@@ -73,10 +78,10 @@ class DirectorConfig:
     strategies: dict[str, DirectorStrategy] = field(default_factory=dict)
     effectiveness: DirectorEffectivenessConfig = field(default_factory=DirectorEffectivenessConfig)
     scene_goals: dict[str, dict[str, str]] = field(default_factory=dict)
-    
+
     # Internal
     _prompt_template: str | None = None
-    
+
     def get_prompt_template(self) -> str:
         """Get the prompt template, loading from file if needed."""
         if self._prompt_template is None:
@@ -89,18 +94,18 @@ class DirectorConfig:
                 # Return default prompt
                 self._prompt_template = self._get_default_prompt()
         return self._prompt_template
-    
+
     def render_prompt(self, context: dict[str, Any]) -> str:
         """Render the prompt template with context variables."""
         template = self.get_prompt_template()
-        
+
         # Simple template substitution
         for key, value in context.items():
             placeholder = f"{{{{{key}}}}}"
             template = template.replace(placeholder, str(value))
-        
+
         return template
-    
+
     def _get_default_prompt(self) -> str:
         """Get default prompt if file is not found."""
         return """You are the Director of the Truman World simulation.
@@ -110,11 +115,11 @@ Truman Suspicion: {{truman_suspicion_score}}
 Isolation Ticks: {{truman_isolation_ticks}}
 
 Decide whether to intervene. Output JSON with should_intervene, scene_goal, target_cast_names, priority, urgency, reasoning, message_hint, strategy, cooldown_ticks."""
-    
+
     def get_strategy(self, strategy_id: str) -> DirectorStrategy | None:
         """Get a strategy by ID."""
         return self.strategies.get(strategy_id)
-    
+
     def list_strategies(self) -> list[DirectorStrategy]:
         """List all available strategies."""
         return list(self.strategies.values())
@@ -122,25 +127,25 @@ Decide whether to intervene. Output JSON with should_intervene, scene_goal, targ
 
 def load_director_config(force_reload: bool = False) -> DirectorConfig:
     """Load director configuration from YAML file.
-    
+
     Uses caching to avoid repeated file reads. In development mode,
     the cache is invalidated every 30 seconds to allow hot-reloading.
-    
+
     Args:
         force_reload: Force reload configuration from file
-        
+
     Returns:
         DirectorConfig instance
     """
     global _config_cache, _config_load_time
-    
+
     current_time = time.time()
-    
+
     # Check if we can use cached config
     if not force_reload and _config_cache is not None:
         if current_time - _config_load_time < _CONFIG_CACHE_TTL:
             return _parse_config(_config_cache)
-    
+
     # Load from file
     try:
         with open(_DIRECTOR_CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -153,7 +158,7 @@ def load_director_config(force_reload: bool = False) -> DirectorConfig:
     except yaml.YAMLError as e:
         logger.error(f"Failed to parse director config: {e}")
         return DirectorConfig()  # Return default config
-    
+
     return _parse_config(_config_cache)
 
 
@@ -161,7 +166,7 @@ def _parse_config(config_dict: dict[str, Any]) -> DirectorConfig:
     """Parse configuration dictionary into DirectorConfig."""
     if not config_dict:
         return DirectorConfig()
-    
+
     # Parse LLM config
     llm_config = DirectorLLMConfig()
     if "llm" in config_dict:
@@ -171,7 +176,7 @@ def _parse_config(config_dict: dict[str, Any]) -> DirectorConfig:
         llm_config.max_tokens = llm_dict.get("max_tokens", 2000)
         llm_config.max_budget_usd = llm_dict.get("max_budget_usd", 0.1)
         llm_config.max_turns = llm_dict.get("max_turns", 1)
-    
+
     # Parse prompt config
     prompt_config = DirectorPromptConfig()
     if "prompt" in config_dict:
@@ -179,7 +184,7 @@ def _parse_config(config_dict: dict[str, Any]) -> DirectorConfig:
         prompt_config.file = prompt_dict.get("file", "director_prompt.md")
         prompt_config.recent_events_limit = prompt_dict.get("recent_events_limit", 10)
         prompt_config.recent_interventions_limit = prompt_dict.get("recent_interventions_limit", 5)
-    
+
     # Parse strategies
     strategies: dict[str, DirectorStrategy] = {}
     if "strategies" in config_dict:
@@ -191,17 +196,17 @@ def _parse_config(config_dict: dict[str, Any]) -> DirectorConfig:
                 action=strategy_dict.get("action", {}),
                 message_hint=strategy_dict.get("message_hint", ""),
             )
-    
+
     # Parse effectiveness config
     effectiveness_config = DirectorEffectivenessConfig()
     if "effectiveness" in config_dict:
         eff_dict = config_dict["effectiveness"]
         effectiveness_config.evaluation_delay_ticks = eff_dict.get("evaluation_delay_ticks", 5)
         effectiveness_config.metrics = eff_dict.get("metrics", {})
-    
+
     # Parse scene goals
     scene_goals = config_dict.get("scene_goals", {})
-    
+
     return DirectorConfig(
         enabled=config_dict.get("enabled", True),
         llm=llm_config,

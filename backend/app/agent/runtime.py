@@ -320,7 +320,10 @@ class AgentRuntime:
 
         if isinstance(goal, str) and goal.startswith("move:"):
             target_location_id = goal.split(":", 1)[1].strip()
-            if isinstance(known_location_ids, list) and target_location_id not in known_location_ids:
+            if (
+                isinstance(known_location_ids, list)
+                and target_location_id not in known_location_ids
+            ):
                 return ActionIntent(agent_id=invocation.agent_id, action_type="rest")
             return ActionIntent(
                 agent_id=invocation.agent_id,
@@ -340,7 +343,12 @@ class AgentRuntime:
                     action_type="move",
                     target_location_id=str(workplace_location_id),
                 )
-            if workplace_location_id or current_location_type in {"office", "hospital", "cafe", "shop"}:
+            if workplace_location_id or current_location_type in {
+                "office",
+                "hospital",
+                "cafe",
+                "shop",
+            }:
                 return ActionIntent(agent_id=invocation.agent_id, action_type="work")
             return ActionIntent(agent_id=invocation.agent_id, action_type="rest")
 

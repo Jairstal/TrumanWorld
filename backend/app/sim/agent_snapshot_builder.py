@@ -34,7 +34,9 @@ async def build_agent_memory_cache(
     from app.store.models import Memory, Agent
 
     # 加载所有 agent 的名称映射
-    agents_result = await session.execute(select(Agent.id, Agent.name).where(Agent.run_id == run_id))
+    agents_result = await session.execute(
+        select(Agent.id, Agent.name).where(Agent.run_id == run_id)
+    )
     agent_names = {row.id: row.name for row in agents_result}
 
     agent_memory_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}

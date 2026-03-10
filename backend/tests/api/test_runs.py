@@ -2,7 +2,15 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.agent.connection_pool as connection_pool_module
-from app.store.models import Agent, DirectorMemory, Event, Location, Memory, Relationship, SimulationRun
+from app.store.models import (
+    Agent,
+    DirectorMemory,
+    Event,
+    Location,
+    Memory,
+    Relationship,
+    SimulationRun,
+)
 from app.sim.scheduler import get_scheduler
 
 
@@ -454,7 +462,9 @@ async def test_get_director_memories_marks_consumed_and_expired_entries(client, 
     run_id = "00000000-0000-0000-0000-000000000205"
     db_session.add_all(
         [
-            SimulationRun(id=run_id, name="director-memory-status", status="running", current_tick=12),
+            SimulationRun(
+                id=run_id, name="director-memory-status", status="running", current_tick=12
+            ),
             Agent(
                 id="agent-cast-memory",
                 run_id=run_id,
@@ -633,7 +643,9 @@ async def test_delete_run_removes_related_records_and_cleans_pool(
 ):
     run_id = "00000000-0000-0000-0000-000000000204"
     fake_pool = _FakePool()
-    monkeypatch.setattr(connection_pool_module, "get_connection_pool", lambda: _return_async(fake_pool))
+    monkeypatch.setattr(
+        connection_pool_module, "get_connection_pool", lambda: _return_async(fake_pool)
+    )
 
     db_session.add_all(
         [
@@ -732,7 +744,9 @@ async def test_delete_run_returns_404_for_missing_run_and_still_cleans_runtime_r
     client, monkeypatch: pytest.MonkeyPatch
 ):
     fake_pool = _FakePool()
-    monkeypatch.setattr(connection_pool_module, "get_connection_pool", lambda: _return_async(fake_pool))
+    monkeypatch.setattr(
+        connection_pool_module, "get_connection_pool", lambda: _return_async(fake_pool)
+    )
 
     response = await client.delete("/api/runs/00000000-0000-0000-0000-000000000208")
 

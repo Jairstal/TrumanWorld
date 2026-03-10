@@ -16,13 +16,11 @@ from app.director.observer import DirectorAssessment
 from app.director.types import DirectorPlan
 from app.infra.logging import get_logger
 from app.infra.settings import get_settings
-from app.scenario.truman_world.director_config import (
-    DirectorConfig,
-    load_director_config,
-)
+from app.scenario.truman_world.director_config import load_director_config
 from app.scenario.types import get_agent_config_id, get_world_role
 
 if TYPE_CHECKING:
+    from claude_agent_sdk import ClaudeAgentOptions
     from app.store.models import Agent
 
 logger = get_logger(__name__)
@@ -34,7 +32,14 @@ DIRECTOR_DECISION_SCHEMA = {
         "should_intervene": {"type": "boolean"},
         "scene_goal": {
             "type": "string",
-            "enum": ["soft_check_in", "preemptive_comfort", "keep_scene_natural", "break_isolation", "rejection_recovery", "none"]
+            "enum": [
+                "soft_check_in",
+                "preemptive_comfort",
+                "keep_scene_natural",
+                "break_isolation",
+                "rejection_recovery",
+                "none",
+            ],
         },
         "target_cast_names": {"type": "array", "items": {"type": "string"}},
         "priority": {"type": "string", "enum": ["low", "normal", "high", "critical"]},
@@ -42,10 +47,10 @@ DIRECTOR_DECISION_SCHEMA = {
         "reasoning": {"type": "string"},
         "message_hint": {"type": "string"},
         "strategy": {"type": "string"},
-        "cooldown_ticks": {"type": "integer", "minimum": 1, "maximum": 10}
+        "cooldown_ticks": {"type": "integer", "minimum": 1, "maximum": 10},
     },
     "required": ["should_intervene", "scene_goal"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
 
 
@@ -75,7 +80,11 @@ class DirectorAgent:
         # Use settings as fallback, but config takes precedence
         self._enabled = self._config.enabled and self.settings.director_agent_enabled
         self._decision_interval = self._config.decision_interval
-        self._model = self._config.llm.model or self.settings.director_agent_model or self.settings.agent_model
+        self._model = (
+            self._config.llm.model
+            or self.settings.director_agent_model
+            or self.settings.agent_model
+        )
 
     def is_enabled(self) -> bool:
         """Check if director agent is enabled."""
@@ -86,13 +95,17 @@ class DirectorAgent:
         if not self._enabled:
             return False
         return tick_no % self._decision_interval == 0
-    
+
     def reload_config(self) -> None:
         """Reload configuration from file (for hot-reloading)."""
         self._config = load_director_config(force_reload=True)
         self._enabled = self._config.enabled and self.settings.director_agent_enabled
         self._decision_interval = self._config.decision_interval
-        self._model = self._config.llm.model or self.settings.director_agent_model or self.settings.agent_model
+        self._model = (
+            self._config.llm.model
+            or self.settings.director_agent_model
+            or self.settings.agent_model
+        )
         logger.debug("DirectorAgent configuration reloaded")
 
     async def decide(
@@ -134,7 +147,6 @@ class DirectorAgent:
         recent_goals: set[str],
     ) -> str:
         """Build the decision prompt for LLM using configuration template."""
-        
         # Build cast agents info
         cast_info = []
         for agent in sorted(cast_agents, key=lambda a: a.name):
@@ -158,7 +170,7 @@ class DirectorAgent:
             interventions_summary.append(
                 f"  - tick {intervention.get('tick_no')}: {intervention.get('scene_goal')} - {intervention.get('reason', 'N/A')[:50]}..."
             )
-        
+
         # Build scene goals info
         scene_goals_info = []
         for goal_id, goal_data in self._config.scene_goals.items():
@@ -182,11 +194,17 @@ class DirectorAgent:
             "continuity_risk": assessment.continuity_risk,
             "cast_agents_info": chr(10).join(cast_info) if cast_info else "(none)",
             "recent_events_limit": recent_events_limit,
-            "recent_events_info": chr(10).join(events_summary) if events_summary else "(no recent events)",
+            "recent_events_info": chr(10).join(events_summary)
+            if events_summary
+            else "(no recent events)",
             "recent_interventions_limit": recent_interventions_limit,
-            "recent_interventions_info": chr(10).join(interventions_summary) if interventions_summary else "(no recent interventions)",
+            "recent_interventions_info": chr(10).join(interventions_summary)
+            if interventions_summary
+            else "(no recent interventions)",
             "recent_goals_info": ", ".join(recent_goals) if recent_goals else "(none)",
-            "scene_goals_info": chr(10).join(scene_goals_info) if scene_goals_info else "(none defined)",
+            "scene_goals_info": chr(10).join(scene_goals_info)
+            if scene_goals_info
+            else "(none defined)",
         }
 
         # Render prompt using configuration template
@@ -198,7 +216,7 @@ class DirectorAgent:
         Uses the same LLM infrastructure as agent decisions.
         Uses configuration from director.yml for LLM parameters.
         """
-        from claude_agent_sdk import ClaudeAgentOptions, query
+        from claude_agent_sdk import ClaudeAgentOptions
 
         logger.debug("DirectorAgent calling LLM for decision")
 
@@ -211,6 +229,7 @@ class DirectorAgent:
 
         # Check if Claude CLI is available
         import shutil
+
         if shutil.which("claude") is None:
             logger.warning("Claude CLI not available, falling back to mock")
             return self._mock_llm_response()
@@ -251,9 +270,7 @@ class DirectorAgent:
             logger.warning(f"DirectorAgent LLM call failed: {exc}, using mock")
             return self._mock_llm_response()
 
-    async def _call_llm_internal(
-        self, full_prompt: str, options: "ClaudeAgentOptions"
-    ) -> str:
+    async def _call_llm_internal(self, full_prompt: str, options: "ClaudeAgentOptions") -> str:
         """Internal LLM call - separated to handle SDK cleanup issues."""
         from claude_agent_sdk import query
 

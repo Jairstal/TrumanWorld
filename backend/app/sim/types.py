@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, TypedDict
 
-from app.scenario.types import AgentProfile, get_world_role, get_agent_config_id
+from app.scenario.types import AgentProfile
 from app.scenario.truman_world.types import DirectorGuidance
 
 

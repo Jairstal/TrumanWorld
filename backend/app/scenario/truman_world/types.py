@@ -86,6 +86,7 @@ def merge_scenario_agent_profile(
 ) -> AgentProfile:
     """Merge a profile dict with optional TrumanWorld DirectorGuidance."""
     from typing import cast as _cast
+
     base = _cast(AgentProfile, dict(profile or {}))
     if guidance:
         base.update(guidance)

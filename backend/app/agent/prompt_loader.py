@@ -167,12 +167,14 @@ class PromptLoader:
             for evt in daily_events:
                 lines.append(self._format_event(evt))
             lines.append("")
-        lines.extend([
-            "# 运行上下文",
-            "```json",
-            self._to_pretty_json(context),
-            "```",
-        ])
+        lines.extend(
+            [
+                "# 运行上下文",
+                "```json",
+                self._to_pretty_json(context),
+                "```",
+            ]
+        )
         return "\n".join(lines)
 
     @staticmethod
