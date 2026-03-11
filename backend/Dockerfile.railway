@@ -9,15 +9,23 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
+
+RUN useradd --create-home --shell /bin/bash appuser
+
+ENV HOME=/home/appuser \
+    PATH=/home/appuser/.local/bin:$PATH
+
+USER appuser
+
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
 WORKDIR /app/backend
 
-COPY backend/pyproject.toml backend/uv.lock ./
+COPY --chown=appuser:appuser backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen
 
-COPY backend /app/backend
-COPY agents /app/agents
+COPY --chown=appuser:appuser backend /app/backend
+COPY --chown=appuser:appuser agents /app/agents
 
 EXPOSE 8000
 
