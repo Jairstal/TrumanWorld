@@ -172,6 +172,11 @@ export function WorldHealthPanel({ metrics, runId, world }: WorldHealthPanelProp
           runId={runId}
           onInjected={refresh}
           maxMemories={world?.health_metrics_config?.ui_director_panel_max_memories}
+          locations={world?.locations.map((location) => ({
+            id: location.id,
+            name: location.name,
+            location_type: location.location_type,
+          })) ?? []}
         />
       </div>
 
@@ -873,14 +878,14 @@ function DirectorStats({ stats, onClick }: DirectorStatsProps) {
           >
             {queuedCount}
           </span>
-          <span className="text-xs text-slate-500">排队中</span>
+          <span className="text-xs text-slate-500">待消费</span>
         </div>
       </div>
 
       {hasIssue && (
         <div className="mt-2 flex items-start gap-1.5 text-xs text-amber-600">
           <span>⚠️</span>
-          <span>干预消费率较低，建议检查 tick 推进和干预传递流程</span>
+          <span>干预消费率较低，说明较多注入尚未被 tick 消费</span>
         </div>
       )}
     </button>
@@ -969,6 +974,7 @@ interface DirectorInterventionModalProps {
   runId: string;
   onInjected: () => void;
   maxMemories?: number;
+  locations?: Array<{ id: string; name: string; location_type: string }>;
 }
 
 type DirectorFilter = "all" | "queued" | "consumed" | "expired";
@@ -980,6 +986,7 @@ function DirectorInterventionModal({
   runId,
   onInjected,
   maxMemories,
+  locations = [],
 }: DirectorInterventionModalProps) {
   const [selectedFilter, setSelectedFilter] = useState<DirectorFilter>("all");
   const [memories, setMemories] = useState<DirectorMemory[]>([]);
@@ -1048,17 +1055,22 @@ function DirectorInterventionModal({
           size="xl"
           showCloseButton={false}
           title="导演干预控制台"
-          subtitle="管理和监控所有导演干预计划"
+          subtitle="管理导演注入，并观察其待消费、已消费与过期状态"
         >
 
             {/* 主体：左右两列 */}
             <div className="flex min-h-0 flex-1 overflow-hidden">
-              {/* 左侧：导演干预 + 导航 + 执行率 */}
+              {/* 左侧：导演干预 + 导航 + 消费率 */}
               <div className="flex w-72 shrink-0 flex-col border-r border-slate-100 bg-slate-50/50">
                 {/* 导演干预表单 */}
                 <div className="border-b border-slate-100 p-4">
                   <h3 className="mb-3 text-sm font-semibold text-slate-700">🎬 导演干预</h3>
-                  <DirectorEventForm runId={runId} onInjected={handleInjected} compact />
+                  <DirectorEventForm
+                    runId={runId}
+                    onInjected={handleInjected}
+                    compact
+                    locations={locations}
+                  />
                 </div>
 
                 {/* 导航菜单 */}
@@ -1084,7 +1096,7 @@ function DirectorInterventionModal({
                     />
                     <NavItem
                       icon="⏳"
-                      label="排队中"
+                      label="待消费"
                       count={queuedCount}
                       active={selectedFilter === "queued"}
                       onClick={() => setSelectedFilter("queued")}
@@ -1101,11 +1113,11 @@ function DirectorInterventionModal({
                   </div>
                 </div>
 
-                {/* 执行率 */}
+                {/* 消费率 */}
                 <div className="border-t border-slate-100 p-4">
                   <div className="rounded-2xl bg-white p-4 shadow-xs">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-500">执行率</span>
+                      <span className="text-slate-500">消费率</span>
                       <span className={`font-bold ${hasIssue ? "text-amber-600" : "text-emerald-600"}`}>
                         {stats.executionRate}%
                       </span>
@@ -1119,7 +1131,7 @@ function DirectorInterventionModal({
                       />
                     </div>
                     {hasIssue && (
-                      <p className="mt-2.5 text-xs text-amber-600">⚠️ 执行率较低</p>
+                      <p className="mt-2.5 text-xs text-amber-600">⚠️ 消费率较低</p>
                     )}
                   </div>
                 </div>
@@ -1131,7 +1143,7 @@ function DirectorInterventionModal({
                   <span className="text-lg font-semibold text-ink">
                     {selectedFilter === "all" && "全部干预"}
                     {selectedFilter === "consumed" && "已消费"}
-                    {selectedFilter === "queued" && "排队中"}
+                    {selectedFilter === "queued" && "待消费"}
                     {selectedFilter === "expired" && "已过期"}
                   </span>
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-sm font-medium text-slate-600">
@@ -1251,7 +1263,7 @@ function DirectorMemoryCard({ memory }: { memory: DirectorMemory }) {
             tone: "bg-slate-100 text-slate-700 border-slate-200",
           }
         : {
-            label: "排队中",
+            label: "待消费",
             tone: "bg-amber-50 text-amber-700 border-amber-100",
           };
 

@@ -19,7 +19,7 @@ const EVENT_TYPE_OPTIONS = [
   { value: "reflect", label: "🔍 反思" },
   {
     value:
-      "director_inject,director_broadcast,director_activity,director_shutdown,director_weather_change",
+      "director_inject,director_broadcast,director_activity,director_shutdown,director_weather_change,director_power_outage",
     label: "📢 导演注入",
   },
   { value: "move_rejected,talk_rejected,work_rejected,rest_rejected", label: "❌ 被拒动作" },

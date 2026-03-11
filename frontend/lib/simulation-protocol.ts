@@ -16,6 +16,7 @@ export const DIRECTOR_EVENT_BROADCAST = `${DIRECTOR_EVENT_PREFIX}broadcast`;
 export const DIRECTOR_EVENT_ACTIVITY = `${DIRECTOR_EVENT_PREFIX}activity`;
 export const DIRECTOR_EVENT_SHUTDOWN = `${DIRECTOR_EVENT_PREFIX}shutdown`;
 export const DIRECTOR_EVENT_WEATHER_CHANGE = `${DIRECTOR_EVENT_PREFIX}weather_change`;
+export const DIRECTOR_EVENT_POWER_OUTAGE = `${DIRECTOR_EVENT_PREFIX}power_outage`;
 
 export const DIRECTOR_SCENE_SOFT_CHECK_IN = "soft_check_in";
 export const DIRECTOR_SCENE_KEEP_NATURAL = "keep_scene_natural";
@@ -31,7 +32,8 @@ export type ActionType =
   | typeof DIRECTOR_EVENT_BROADCAST
   | typeof DIRECTOR_EVENT_ACTIVITY
   | typeof DIRECTOR_EVENT_SHUTDOWN
-  | typeof DIRECTOR_EVENT_WEATHER_CHANGE;
+  | typeof DIRECTOR_EVENT_WEATHER_CHANGE
+  | typeof DIRECTOR_EVENT_POWER_OUTAGE;
 
 export type RejectedActionEventType =
   | `${typeof ACTION_MOVE}_rejected`
@@ -44,7 +46,8 @@ export type RejectedActionEventType =
   | `${typeof DIRECTOR_EVENT_BROADCAST}_rejected`
   | `${typeof DIRECTOR_EVENT_ACTIVITY}_rejected`
   | `${typeof DIRECTOR_EVENT_SHUTDOWN}_rejected`
-  | `${typeof DIRECTOR_EVENT_WEATHER_CHANGE}_rejected`;
+  | `${typeof DIRECTOR_EVENT_WEATHER_CHANGE}_rejected`
+  | `${typeof DIRECTOR_EVENT_POWER_OUTAGE}_rejected`;
 
 export type EventType = ActionType | RejectedActionEventType;
 
