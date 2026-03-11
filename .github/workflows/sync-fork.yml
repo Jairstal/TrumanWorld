@@ -17,17 +17,17 @@ on:
 # - PAT_TOKEN: 具有当前仓库写权限的 Personal Access Token (PAT)
 #   如果不设置，使用默认的 GITHUB_TOKEN
 
-env:
-  # 上游仓库配置
-  UPSTREAM_REPO: gqy20/TrumanWorld
-  UPSTREAM_BRANCH: main
-
 jobs:
   sync-fork:
     name: Sync Fork with Upstream
     runs-on: ubuntu-latest
     # 不在主仓库运行（避免在 gqy20/TrumanWorld 自身执行）
-    if: ${{ github.repository != env.UPSTREAM_REPO }}
+    if: github.repository != 'gqy20/TrumanWorld'
+
+    env:
+      # 上游仓库配置
+      UPSTREAM_REPO: gqy20/TrumanWorld
+      UPSTREAM_BRANCH: main
 
     steps:
       - name: Checkout repository
