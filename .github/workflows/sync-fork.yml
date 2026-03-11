@@ -1,9 +1,9 @@
 name: Sync Fork with Upstream
 
 on:
-  # 定时每天检查一次（UTC 时间 00:00）
+  # 定时检查：每小时检查一次（更频繁地检测更新）
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 * * * *'
   # 允许手动触发
   workflow_dispatch:
     inputs:
@@ -48,10 +48,10 @@ jobs:
           git remote add upstream $UPSTREAM_URL || git remote set-url upstream $UPSTREAM_URL
           git fetch upstream
 
-      - name: Sync branch
+      - name: Check and sync branch
         run: |
           BRANCH="${{ github.event.inputs.sync_branch || env.UPSTREAM_BRANCH }}"
-          echo "Syncing branch: $BRANCH"
+          echo "Checking branch: $BRANCH"
 
           # 确保本地分支存在
           git checkout $BRANCH
@@ -65,12 +65,17 @@ jobs:
 
           if [ "$LOCAL_COMMIT" = "$UPSTREAM_COMMIT" ]; then
             echo "✅ Fork is already up to date with upstream"
+            echo "synced=false" >> $GITHUB_ENV
             exit 0
           fi
 
-          echo "🔄 Syncing fork with upstream..."
+          echo "🔄 Changes detected!"
           echo "Local commit: $LOCAL_COMMIT"
           echo "Upstream commit: $UPSTREAM_COMMIT"
+
+          # 获取更新信息
+          echo "📋 Changes to be synced:"
+          git log --oneline HEAD..upstream/$BRANCH | head -20
 
           # 合并 upstream 的更新（使用 merge 策略保留 fork 的自定义更改）
           git merge upstream/$BRANCH --no-edit
@@ -79,6 +84,7 @@ jobs:
           git push origin $BRANCH
 
           echo "✅ Successfully synced fork with upstream"
+          echo "synced=true" >> $GITHUB_ENV
 
       - name: Create sync summary
         if: always()
@@ -86,7 +92,11 @@ jobs:
           echo "## Fork Sync Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ **Sync completed successfully**" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ env.synced }}" = "true" ]; then
+              echo "✅ **Sync completed successfully**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ **Already up to date**" >> $GITHUB_STEP_SUMMARY
+            fi
           elif [ "${{ job.status }}" = "cancelled" ]; then
             echo "⚠️ **Sync was cancelled**" >> $GITHUB_STEP_SUMMARY
           else
