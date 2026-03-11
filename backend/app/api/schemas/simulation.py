@@ -153,10 +153,10 @@ class RunDetailResponse(RunBaseResponse):
 class DirectorEventRequest(BaseModel):
     """导演事件注入请求"""
 
-    event_type: Literal["activity", "shutdown", "broadcast", "weather_change"] = Field(
+    event_type: Literal["activity", "shutdown", "broadcast", "weather_change", "power_outage"] = Field(
         ...,
         description="事件类型",
-        examples=["activity", "shutdown", "broadcast", "weather_change"],
+        examples=["activity", "shutdown", "broadcast", "weather_change", "power_outage"],
     )
     payload: dict = Field(
         default_factory=dict,
@@ -336,8 +336,8 @@ class WorldSnapshotRunResponse(RunBaseResponse):
 
 class WorldDirectorStatsResponse(BaseModel):
     total: int = Field(0, description="总干预数", ge=0)
-    executed: int = Field(0, description="已执行数", ge=0)
-    execution_rate: int = Field(0, description="执行率 (%)", ge=0, le=100)
+    executed: int = Field(0, description="已消费数", ge=0)
+    execution_rate: int = Field(0, description="消费率 (%)", ge=0, le=100)
 
 
 class WorldDailyStatsResponse(BaseModel):
@@ -385,8 +385,8 @@ class DirectorMemoryResponse(BaseModel):
     location_hint: str | None = Field(None, description="地点提示")
     location_name: str | None = Field(None, description="地点名称")
     reason: str | None = Field(None, description="原因说明")
-    was_executed: bool = Field(..., description="是否已执行")
-    delivery_status: str = Field(..., description="交付状态", examples=["pending", "delivered", "failed"])
+    was_executed: bool = Field(..., description="是否已被本轮 tick 消费")
+    delivery_status: str = Field(..., description="投递状态", examples=["queued", "consumed", "expired"])
     effectiveness_score: float | None = Field(None, description="效果分数", ge=0, le=1)
     trigger_suspicion_score: float = Field(0.0, description="触发怀疑度", ge=0, le=1)
     trigger_continuity_risk: str = Field("stable", description="触发连续性风险")

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from app.scenario.truman_world.rules import load_world_config
 from app.sim.agent_snapshot_builder import build_agent_snapshots
-from app.sim.context import get_run_world_time
+from app.sim.context import get_run_world_effects, get_run_world_time
 from app.sim.location_utils import resolve_agent_location_id
 from app.sim.types import AgentDecisionSnapshot
 from app.sim.world import AgentState, LocationState, WorldState
@@ -105,9 +105,11 @@ async def load_tick_data(
 
     world = WorldState(
         current_time=get_run_world_time(run),
+        current_tick=run.current_tick,
         tick_minutes=run.tick_minutes,
         locations=location_states,
         agents=agent_states,
+        world_effects=get_run_world_effects(run),
         **_load_sleep_config(),
     )
 

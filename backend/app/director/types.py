@@ -22,3 +22,5 @@ class DirectorPlan:
     # 智能决策标记
     is_intelligent_decision: bool = False  # 是否由LLM智能决策生成
     strategy: str | None = None  # 干预策略描述
+    source_type: str = "auto"  # "auto" | "manual"
+    source_memory_id: str | None = None

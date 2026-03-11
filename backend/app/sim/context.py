@@ -12,10 +12,7 @@ from typing import TYPE_CHECKING
 
 from app.scenario.types import ScenarioGuidance, get_world_role
 from app.sim.event_utils import format_event_for_context
-from app.sim.runtime_context_utils import (
-    build_agent_world_context,
-    extract_truman_suspicion_from_agent_data,
-)
+from app.sim.runtime_context_utils import build_agent_world_context, extract_truman_suspicion_from_agent_data
 from app.sim.world_queries import find_nearby_agent, get_agent
 from app.sim.world import AgentState, LocationState, WorldState
 from app.store.repositories import AgentRepository, EventRepository, LocationRepository
@@ -94,9 +91,11 @@ class ContextBuilder:
 
         return WorldState(
             current_time=get_run_world_time(run),
+            current_tick=run.current_tick,
             tick_minutes=tick_minutes,
             locations=location_states,
             agents=agent_states,
+            world_effects=get_run_world_effects(run),
         )
 
     def build_agent_world_context(
@@ -222,3 +221,9 @@ def get_run_world_time(run: SimulationRun) -> datetime:
         start_time = start_time.replace(tzinfo=UTC)
 
     return start_time + timedelta(minutes=run.current_tick * run.tick_minutes)
+
+
+def get_run_world_effects(run: SimulationRun) -> dict:
+    metadata = run.metadata_json or {}
+    world_effects = metadata.get("world_effects")
+    return world_effects if isinstance(world_effects, dict) else {}

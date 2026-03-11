@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     project_root: Path = PROJECT_ROOT
 
     # 导演智能体配置（实验性功能）
+    director_auto_intervention_enabled: bool = False
     director_agent_enabled: bool = True
     director_agent_model: str | None = None
     director_decision_interval: int = 1

@@ -100,7 +100,7 @@ async def get_director_observation(
     "/{run_id}/director/memories",
     response_model=DirectorMemoriesResponse,
     summary="获取导演干预明细",
-    description="获取导演干预计划明细，支持前端查看全部、未执行和已执行记录。",
+    description="获取导演干预计划明细，支持前端查看全部、排队中、已消费和已过期记录。",
     responses={
         **COMMON_RESPONSES,
         200: {"description": "导演干预明细", "model": DirectorMemoriesResponse},
@@ -125,7 +125,7 @@ async def get_director_memories(
 
     agent_name_map = {agent.id: agent.name for agent in agents}
     location_name_map = {location.id: location.name for location in locations}
-    manual_goals = {"gather", "activity", "shutdown", "weather_change"}
+    manual_goals = {"gather", "activity", "shutdown", "weather_change", "power_outage"}
 
     return DirectorMemoriesResponse(
         run_id=str(run_id),
@@ -157,6 +157,7 @@ async def get_director_memories(
 - `shutdown`: 临时关闭地点
 - `broadcast`: 全服广播消息
 - `weather_change`: 天气变化
+- `power_outage`: 指定地点停电
 
 注意：导演系统仅限于简单世界事件，不允许直接修改 agent 属性或关系。
     """,

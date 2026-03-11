@@ -153,7 +153,7 @@ def build_scene_guidance(world_role: str, world: dict[str, Any]) -> dict[str, An
     """Build scene guidance for cast agents.
 
     Supports both automatic intervention goals (soft_check_in, keep_scene_natural, etc.)
-    and manual injection goals (gather, activity, shutdown, weather_change).
+    and manual injection goals (gather, activity, shutdown, weather_change, power_outage).
     """
     if world_role != "cast":
         return {}
@@ -174,7 +174,7 @@ def build_scene_guidance(world_role: str, world: dict[str, Any]) -> dict[str, An
     }
 
     # Manual injection goals are typically more directive
-    manual_goals = {"gather", "activity", "shutdown", "weather_change"}
+    manual_goals = {"gather", "activity", "shutdown", "weather_change", "power_outage"}
     if scene_goal in manual_goals:
         base_guidance["is_advisory"] = False
         base_guidance["action_hint"] = _build_action_hint_for_manual_goal(scene_goal, guidance)
@@ -217,6 +217,15 @@ def _build_action_hint_for_manual_goal(scene_goal: str, guidance: dict[str, Any]
 
     if scene_goal == "weather_change":
         return f"天气变化: '{message_hint}'。请注意天气影响，调整户外活动计划。"
+
+    if scene_goal == "power_outage":
+        if location_hint:
+            return (
+                f"停电通知: '{message_hint}'。"
+                f"你所在世界的 {location_hint} 可能受到影响。"
+                "请自然表现出对停电的反应，并调整当前安排。"
+            )
+        return f"停电通知: '{message_hint}'。请自然表现出对停电的反应。"
 
     return "请根据情况做出合适的反应。"
 

@@ -636,7 +636,7 @@ class DirectorMemoryRepository:
         Returns:
             未执行的手动干预计划列表，按 tick_no 降序排列
         """
-        manual_goals = ("gather", "activity", "shutdown", "weather_change")
+        manual_goals = ("gather", "activity", "shutdown", "weather_change", "power_outage")
         stmt: Select[tuple[DirectorMemory]] = (
             select(DirectorMemory)
             .where(

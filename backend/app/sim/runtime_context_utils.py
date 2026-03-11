@@ -69,6 +69,7 @@ def build_agent_world_context(
 
     if world_role:
         context["world_role"] = world_role
+    _inject_world_effects(context, world, current_location_id)
     if director_guidance:
         context.update(_normalize_director_guidance(director_guidance))
 
@@ -125,3 +126,40 @@ def _normalize_director_guidance(guidance: ScenarioGuidance) -> ScenarioGuidance
             normalized[key] = value
 
     return normalized
+
+
+def _inject_world_effects(
+    context: dict,
+    world: "WorldState",
+    current_location_id: str | None,
+) -> None:
+    world_effects = getattr(world, "world_effects", {}) or {}
+    active_world_effects: list[str] = []
+    current_location_effects: list[dict] = []
+
+    for outage in world_effects.get("power_outages", []):
+        if not isinstance(outage, dict):
+            continue
+        start_tick = outage.get("start_tick")
+        end_tick = outage.get("end_tick")
+        current_tick = getattr(world, "current_tick", 0)
+        if isinstance(start_tick, int) and current_tick < start_tick:
+            continue
+        if isinstance(end_tick, int) and current_tick >= end_tick:
+            continue
+        active_world_effects.append("power_outage")
+        if current_location_id and outage.get("location_id") == current_location_id:
+            current_location_effects.append(
+                {
+                    "effect_type": "power_outage",
+                    "location_id": outage.get("location_id"),
+                    "message": outage.get("message"),
+                    "end_tick": outage.get("end_tick"),
+                }
+            )
+
+    if active_world_effects:
+        context["active_world_effects"] = sorted(set(active_world_effects))
+    if current_location_effects:
+        context["current_location_effects"] = current_location_effects
+        context["current_location_power_status"] = "off"

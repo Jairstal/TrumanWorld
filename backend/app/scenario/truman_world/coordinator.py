@@ -7,6 +7,7 @@ from app.agent.providers import HeuristicDecisionProvider
 from app.director.observer import DirectorAssessment, DirectorObserver
 from app.director.planner import DirectorPlanner
 from app.director.types import DirectorPlan
+from app.infra.settings import get_settings
 from app.infra.logging import get_logger
 from app.scenario.truman_world.heuristics import build_truman_world_decision
 from app.scenario.truman_world.types import (
@@ -46,6 +47,7 @@ class TrumanWorldCoordinator:
         )
         self.observer = DirectorObserver()
         self.planner = DirectorPlanner()
+        self.settings = get_settings()
 
     async def observe_run(self, run_id: str, event_limit: int = 20) -> DirectorAssessment:
         if self.run_repo is None or self.agent_repo is None or self.event_repo is None:
@@ -96,10 +98,11 @@ class TrumanWorldCoordinator:
             if pending_manual:
                 # 将最新的手动计划转换为 DirectorPlan
                 memory = pending_manual[0]
-                await self.director_memory_repo.mark_executed(memory.id)
                 return self._convert_memory_to_plan(memory)
 
         # 2. 没有手动计划时，走自动逻辑
+        if not self.settings.director_auto_intervention_enabled:
+            return None
         return await self._build_auto_plan(run_id, agents)
 
     async def _build_auto_plan(self, run_id: str, agents: list[Agent]) -> DirectorPlan | None:
@@ -219,6 +222,9 @@ class TrumanWorldCoordinator:
             return
         run = await self.run_repo.get(run_id) if self.run_repo is not None else None
         tick_no = run.current_tick if run is not None else 0
+        if plan.source_type == "manual" and plan.source_memory_id:
+            await self.director_memory_repo.mark_executed(plan.source_memory_id)
+            return
         await self.director_memory_repo.create(
             run_id=run_id,
             tick_no=tick_no,
@@ -262,6 +268,8 @@ class TrumanWorldCoordinator:
             target_agent_id=memory.target_agent_id,
             reason=memory.reason,
             cooldown_ticks=memory.cooldown_ticks,
+            source_type="manual",
+            source_memory_id=memory.id,
         )
 
     def assess(

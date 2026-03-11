@@ -2,6 +2,7 @@ from app.director.manual_planner import ManualDirectorPlanner
 from app.protocol.simulation import (
     DIRECTOR_SCENE_ACTIVITY,
     DIRECTOR_SCENE_GATHER,
+    DIRECTOR_SCENE_POWER_OUTAGE,
     DIRECTOR_SCENE_SHUTDOWN,
     DIRECTOR_SCENE_WEATHER_CHANGE,
 )
@@ -55,7 +56,7 @@ def test_manual_planner_builds_gather_plan_for_broadcast():
     assert plan.cooldown_ticks == 2
 
 
-def test_manual_planner_builds_activity_shutdown_and_weather_plans():
+def test_manual_planner_builds_activity_shutdown_weather_and_power_outage_plans():
     planner = ManualDirectorPlanner()
     agents = [_make_agent("cast-a", "cast")]
 
@@ -80,6 +81,13 @@ def test_manual_planner_builds_activity_shutdown_and_weather_plans():
         agents=agents,
         truman_agent_id="truman",
     )
+    power_outage = planner.build_plan_from_manual_event(
+        event_type="power_outage",
+        payload={"message": "Block blackout"},
+        location_id="harbor",
+        agents=agents,
+        truman_agent_id="truman",
+    )
 
     assert activity is not None
     assert activity.scene_goal == DIRECTOR_SCENE_ACTIVITY
@@ -95,6 +103,11 @@ def test_manual_planner_builds_activity_shutdown_and_weather_plans():
     assert weather.scene_goal == DIRECTOR_SCENE_WEATHER_CHANGE
     assert weather.priority == "normal"
     assert weather.urgency == "advisory"
+
+    assert power_outage is not None
+    assert power_outage.scene_goal == DIRECTOR_SCENE_POWER_OUTAGE
+    assert power_outage.location_hint == "harbor"
+    assert power_outage.urgency == "immediate"
 
 
 def test_manual_planner_returns_none_for_unsupported_event_type():

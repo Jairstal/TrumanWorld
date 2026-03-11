@@ -49,6 +49,16 @@ def _build_world() -> WorldState:
 
 def test_build_agent_world_context_includes_location_occupants_and_guidance():
     world = _build_world()
+    world.world_effects = {
+        "power_outages": [
+            {
+                "location_id": "cafe",
+                "start_tick": 0,
+                "end_tick": 3,
+                "message": "Cafe blackout",
+            }
+        ]
+    }
 
     context = build_agent_world_context(
         world=world,
@@ -79,6 +89,9 @@ def test_build_agent_world_context_includes_location_occupants_and_guidance():
     assert context["director_priority"] == "advisory"
     assert context["director_message_hint"] == "keep it casual"
     assert context["workplace_location_id"] == "cafe"
+    assert context["active_world_effects"] == ["power_outage"]
+    assert context["current_location_power_status"] == "off"
+    assert context["current_location_effects"][0]["effect_type"] == "power_outage"
 
 
 def test_extract_truman_suspicion_from_agent_data_returns_first_truman_score():

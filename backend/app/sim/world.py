@@ -31,22 +31,27 @@ class WorldState:
     def __init__(
         self,
         current_time: datetime,
+        current_tick: int = 0,
         tick_minutes: int = 5,
         locations: dict[str, LocationState] | None = None,
         agents: dict[str, AgentState] | None = None,
+        world_effects: dict[str, Any] | None = None,
         sleep_start_hour: int = 23,
         sleep_end_hour: int = 6,
     ) -> None:
         self.current_time = current_time
+        self.current_tick = current_tick
         self.tick_minutes = tick_minutes
         self.locations = locations or {}
         self.agents = agents or {}
+        self.world_effects = world_effects or {}
         self.sleep_start_hour = sleep_start_hour
         self.sleep_end_hour = sleep_end_hour
 
     def snapshot(self) -> dict[str, Any]:
         return {
             "current_time": self.current_time.isoformat(),
+            "current_tick": self.current_tick,
             "tick_minutes": self.tick_minutes,
             "clock": self.time_context(),
             "locations": {
@@ -58,6 +63,7 @@ class WorldState:
                 }
                 for location_id, location in self.locations.items()
             },
+            "world_effects": deepcopy(self.world_effects),
             "agents": {
                 agent_id: {
                     "name": agent.name,
@@ -75,6 +81,7 @@ class WorldState:
         minute_of_day = (self.current_time.hour * 60) + self.current_time.minute
         return {
             "current_time": self.current_time.isoformat(),
+            "current_tick": self.current_tick,
             "tick_minutes": self.tick_minutes,
             "day_index": self._day_index(),
             "weekday": weekday,
@@ -87,6 +94,7 @@ class WorldState:
         }
 
     def advance_tick(self) -> datetime:
+        self.current_tick += 1
         self.current_time = self.current_time + timedelta(minutes=self.tick_minutes)
         # 跳夜：若进入睡眠时段，直接跳到次日 sleep_end_hour（默认 06:00）
         if self.current_time.hour >= self.sleep_start_hour:

@@ -895,6 +895,65 @@ async def test_inject_director_event_rejects_unknown_event_type(client):
 
 
 @pytest.mark.asyncio
+async def test_inject_director_event_rejects_unknown_location_id(client):
+    create_response = await client.post("/api/runs", json={"name": "director-run-invalid-location"})
+    run_id = create_response.json()["id"]
+
+    inject_response = await client.post(
+        f"/api/runs/{run_id}/director/events",
+        json={
+            "event_type": "shutdown",
+            "payload": {"message": "Hospital closed"},
+            "location_id": "missing-location",
+            "importance": 0.8,
+        },
+    )
+
+    assert inject_response.status_code == 422
+    assert inject_response.json()["detail"] == "Invalid location_id for this run: missing-location"
+
+
+@pytest.mark.asyncio
+async def test_inject_power_outage_persists_world_effect_and_public_timeline_event(client, db_session):
+    create_response = await client.post("/api/runs", json={"name": "director-run-power"})
+    run_id = create_response.json()["id"]
+
+    square = (
+        await db_session.execute(
+            select(Location).where(Location.run_id == run_id, Location.location_type == "plaza")
+        )
+    ).scalar_one()
+
+    inject_response = await client.post(
+        f"/api/runs/{run_id}/director/events",
+        json={
+            "event_type": "power_outage",
+            "payload": {"message": "Town square blackout", "duration_ticks": 3},
+            "location_id": square.id,
+            "importance": 0.9,
+        },
+    )
+    timeline_response = await client.get(f"/api/runs/{run_id}/timeline")
+    world_response = await client.get(f"/api/runs/{run_id}/world")
+
+    run = await db_session.get(SimulationRun, run_id)
+    world_effects = (run.metadata_json or {}).get("world_effects", {})
+    power_outages = world_effects.get("power_outages", [])
+
+    assert inject_response.status_code == 200
+    assert inject_response.json()["status"] == "queued"
+    assert len(power_outages) == 1
+    assert power_outages[0]["location_id"] == square.id
+    assert power_outages[0]["message"] == "Town square blackout"
+
+    timeline = timeline_response.json()
+    assert any(event["event_type"] == "director_power_outage" for event in timeline["events"])
+
+    world_events = world_response.json()["recent_events"]
+    assert any(event["event_type"] == "director_power_outage" for event in world_events)
+
+
+@pytest.mark.asyncio
 async def test_delete_run_removes_related_records_and_cleans_pool(
     client, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ):

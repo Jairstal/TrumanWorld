@@ -19,6 +19,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.scenario.truman_world.coordinator import TrumanWorldCoordinator
 from app.scenario.truman_world.scenario import TrumanWorldScenario
+from app.director.service import DirectorEventService
+from app.infra.settings import get_settings
 from app.sim.world_loader import load_tick_data
 from app.store.models import Agent, Base, DirectorMemory, Location, SimulationRun
 
@@ -116,11 +118,17 @@ async def test_build_director_plan_does_not_write_db_in_read_phase(db_session):
         )
     ).scalar_one()
 
+    monkey_settings = get_settings()
+    original = monkey_settings.director_auto_intervention_enabled
+    monkey_settings.director_auto_intervention_enabled = True
     coordinator = TrumanWorldCoordinator(db_session)
     agents = [cast, truman]
 
-    # 在 "read_session" 内调用 build_director_plan（模拟 Phase 1 的调用路径）
-    plan = await coordinator.build_director_plan(run_id, agents)
+    try:
+        # 在 "read_session" 内调用 build_director_plan（模拟 Phase 1 的调用路径）
+        plan = await coordinator.build_director_plan(run_id, agents)
+    finally:
+        monkey_settings.director_auto_intervention_enabled = original
 
     # 统计调用后的 director_memories 行数
     count_after = (
@@ -202,8 +210,14 @@ async def test_run_tick_isolated_persists_director_plan_after_tick(db_session):
         registry = AgentRegistry(tmp_path)
         runtime = AgentRuntime(registry=registry, decision_provider=HeuristicDecisionProvider())
         service = SimulationService.create_for_scheduler(runtime)
+        monkey_settings = get_settings()
+        original = monkey_settings.director_auto_intervention_enabled
+        monkey_settings.director_auto_intervention_enabled = True
 
-        await service.run_tick_isolated(run_id, engine)
+        try:
+            await service.run_tick_isolated(run_id, engine)
+        finally:
+            monkey_settings.director_auto_intervention_enabled = original
 
         # 验证：Phase 3 应该已将触发的 director plan 写入 director_memories
         async with AsyncSessionType(engine, expire_on_commit=False) as verify_session:
@@ -220,6 +234,50 @@ async def test_run_tick_isolated_persists_director_plan_after_tick(db_session):
     finally:
         await engine.dispose()
         shutil.rmtree(tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_manual_director_plan_is_marked_executed_only_in_write_phase(db_session):
+    """手动注入在 read phase 仅生成 plan，不应提前标记 consumed。"""
+    run_id = "run-manual-write-phase"
+    loc_id = f"{run_id}-loc"
+    cast_id = f"{run_id}-cast"
+    truman_id = f"{run_id}-truman"
+
+    run = _make_run(run_id, current_tick=3)
+    loc = _make_location(loc_id, run_id)
+    cast = _make_cast(cast_id, run_id, loc_id)
+    truman = _make_truman(truman_id, run_id, loc_id, suspicion=0.2)
+
+    db_session.add_all([run, loc, cast, truman])
+    await db_session.commit()
+
+    await DirectorEventService(db_session).inject_event(
+        run_id=run_id,
+        event_type="broadcast",
+        payload={"message": "Town hall at plaza"},
+        location_id=loc_id,
+        importance=0.8,
+    )
+
+    memory = (
+        await db_session.execute(
+            select(DirectorMemory).where(DirectorMemory.run_id == run_id)
+        )
+    ).scalar_one()
+    assert memory.was_executed is False
+
+    coordinator = TrumanWorldCoordinator(db_session)
+    plan = await coordinator.build_director_plan(run_id, [cast, truman])
+    await db_session.refresh(memory)
+
+    assert plan is not None
+    assert memory.was_executed is False
+
+    await coordinator.persist_director_plan(run_id, plan)
+    await db_session.refresh(memory)
+
+    assert memory.was_executed is True
 
 
 # ---------------------------------------------------------------------------
@@ -248,12 +306,18 @@ async def test_load_tick_data_returns_director_plan_for_high_suspicion(db_sessio
     db_session.add_all([run, loc, cast, truman])
     await db_session.commit()
 
-    scenario = TrumanWorldScenario(db_session)
-    loaded = await load_tick_data(
-        session=db_session,
-        run_id=run_id,
-        scenario=scenario,
-    )
+    monkey_settings = get_settings()
+    original = monkey_settings.director_auto_intervention_enabled
+    monkey_settings.director_auto_intervention_enabled = True
+    try:
+        scenario = TrumanWorldScenario(db_session)
+        loaded = await load_tick_data(
+            session=db_session,
+            run_id=run_id,
+            scenario=scenario,
+        )
+    finally:
+        monkey_settings.director_auto_intervention_enabled = original
 
     # 修复后，TickData 应包含 director_plan 字段
     assert hasattr(loaded, "director_plan"), (
@@ -264,6 +328,34 @@ async def test_load_tick_data_returns_director_plan_for_high_suspicion(db_sessio
     assert loaded.director_plan is not None, (
         "高怀疑度（0.9）应触发策略，director_plan 应为非 None。"
     )
+
+
+@pytest.mark.asyncio
+async def test_build_director_plan_returns_none_when_auto_intervention_disabled(db_session):
+    run_id = "run-auto-director-disabled"
+    loc_id = f"{run_id}-loc"
+    cast_id = f"{run_id}-cast"
+    truman_id = f"{run_id}-truman"
+
+    run = _make_run(run_id, current_tick=3)
+    loc = _make_location(loc_id, run_id)
+    cast = _make_cast(cast_id, run_id, loc_id)
+    truman = _make_truman(truman_id, run_id, loc_id, suspicion=0.9)
+
+    db_session.add_all([run, loc, cast, truman])
+    await db_session.commit()
+
+    monkey_settings = get_settings()
+    original = monkey_settings.director_auto_intervention_enabled
+    monkey_settings.director_auto_intervention_enabled = False
+    coordinator = TrumanWorldCoordinator(db_session)
+
+    try:
+        plan = await coordinator.build_director_plan(run_id, [cast, truman])
+    finally:
+        monkey_settings.director_auto_intervention_enabled = original
+
+    assert plan is None
 
 
 # ---------------------------------------------------------------------------

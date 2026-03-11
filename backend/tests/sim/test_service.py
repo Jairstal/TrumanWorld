@@ -479,7 +479,7 @@ async def test_simulation_service_includes_director_system_events_for_cast_recen
 
 
 @pytest.mark.asyncio
-async def test_manual_director_intervention_is_consumed_once(db_session):
+async def test_manual_director_intervention_is_not_consumed_in_read_phase(db_session):
     run = SimulationRun(
         id="run-service-manual-once",
         name="service",
@@ -536,7 +536,6 @@ async def test_manual_director_intervention_is_consumed_once(db_session):
     coordinator = TrumanWorldCoordinator(db_session)
 
     first_plan = await coordinator.build_director_plan(run.id, agents)
-    second_plan = await coordinator.build_director_plan(run.id, agents)
     pending = await DirectorMemoryRepository(db_session).get_pending_manual_interventions(
         run_id=run.id,
         current_tick=run.current_tick,
@@ -546,8 +545,8 @@ async def test_manual_director_intervention_is_consumed_once(db_session):
     assert first_plan is not None
     assert first_plan.scene_goal == "gather"
     assert first_plan.location_hint == square.id
-    assert second_plan is None
-    assert pending == []
+    assert len(pending) == 1
+    assert pending[0].was_executed is False
 
 
 @pytest.mark.asyncio

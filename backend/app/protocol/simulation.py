@@ -20,7 +20,8 @@ DIRECTOR_EVENT_BROADCAST = f"{DIRECTOR_EVENT_PREFIX}broadcast"
 DIRECTOR_EVENT_ACTIVITY = f"{DIRECTOR_EVENT_PREFIX}activity"
 DIRECTOR_EVENT_SHUTDOWN = f"{DIRECTOR_EVENT_PREFIX}shutdown"
 DIRECTOR_EVENT_WEATHER_CHANGE = f"{DIRECTOR_EVENT_PREFIX}weather_change"
-DIRECTOR_EVENT_KINDS = ("activity", "shutdown", "broadcast", "weather_change")
+DIRECTOR_EVENT_POWER_OUTAGE = f"{DIRECTOR_EVENT_PREFIX}power_outage"
+DIRECTOR_EVENT_KINDS = ("activity", "shutdown", "broadcast", "weather_change", "power_outage")
 
 # 导演场景目标常量 - 自动干预
 DIRECTOR_SCENE_SOFT_CHECK_IN = "soft_check_in"
@@ -34,6 +35,7 @@ DIRECTOR_SCENE_GATHER = "gather"  # 集合场景
 DIRECTOR_SCENE_ACTIVITY = "activity"  # 活动场景
 DIRECTOR_SCENE_SHUTDOWN = "shutdown"  # 关闭场景
 DIRECTOR_SCENE_WEATHER_CHANGE = "weather_change"  # 天气变化场景
+DIRECTOR_SCENE_POWER_OUTAGE = "power_outage"  # 停电场景
 
 ActionType: TypeAlias = Literal[
     "move",
@@ -47,6 +49,7 @@ ActionType: TypeAlias = Literal[
     "director_activity",
     "director_shutdown",
     "director_weather_change",
+    "director_power_outage",
 ]
 RejectedActionEventType: TypeAlias = Literal[
     "move_rejected",
@@ -60,6 +63,7 @@ RejectedActionEventType: TypeAlias = Literal[
     "director_activity_rejected",
     "director_shutdown_rejected",
     "director_weather_change_rejected",
+    "director_power_outage_rejected",
 ]
 EventType: TypeAlias = ActionType | RejectedActionEventType
 DirectorSceneGoal: TypeAlias = Literal[
@@ -74,6 +78,7 @@ DirectorSceneGoal: TypeAlias = Literal[
     "activity",
     "shutdown",
     "weather_change",
+    "power_outage",
 ]
 
 
