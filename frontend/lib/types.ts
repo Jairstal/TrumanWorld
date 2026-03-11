@@ -247,9 +247,12 @@ export type AgentRecentEvent = {
 export type AgentMemory = {
   id: string;
   memory_type: string;
+  memory_category: string;
   summary?: string;
   content: string;
   importance?: number;
+  event_importance?: number;
+  self_relevance?: number;
   related_agent_id?: string;
   related_agent_name?: string;
   created_at?: string;

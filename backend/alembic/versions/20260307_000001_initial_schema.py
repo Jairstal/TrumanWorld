@@ -151,7 +151,12 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("summary", sa.String(length=500), nullable=True),
         sa.Column("importance", sa.Float(), nullable=False, server_default="0"),
+        sa.Column("event_importance", sa.Float(), nullable=False, server_default="0"),
+        sa.Column("self_relevance", sa.Float(), nullable=False, server_default="0"),
+        sa.Column("belief_confidence", sa.Float(), nullable=False, server_default="1"),
         sa.Column("emotional_valence", sa.Float(), nullable=False, server_default="0"),
+        sa.Column("retrieval_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("last_accessed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "related_agent_id", sa.String(length=64), sa.ForeignKey("agents.id"), nullable=True
         ),

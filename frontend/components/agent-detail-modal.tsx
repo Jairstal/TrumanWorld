@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/modal";
 import { AgentAvatar } from "@/components/agent-avatar";
-import { inferAgentStatus, relationshipTone } from "@/lib/agent-utils";
+import { formatAgentScore, inferAgentStatus, relationshipTone } from "@/lib/agent-utils";
 import { getAgentResult, getWorldResult } from "@/lib/api";
 import { describeAgentEvent } from "@/lib/event-utils";
 import { tickToSimDayTime } from "@/lib/world-utils";
@@ -274,7 +274,9 @@ export function AgentDetailModal({ isOpen, onClose, runId, agentId }: AgentDetai
                   >
                     <p className="text-sm text-slate-700">{memory.content}</p>
                     <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
-                      <span>重要度: {memory.importance}</span>
+                      <span>重要度: {formatAgentScore(memory.importance)}</span>
+                      <span>事件显著性: {formatAgentScore(memory.event_importance)}</span>
+                      <span>主体相关性: {formatAgentScore(memory.self_relevance)}</span>
                       {memory.created_at && (
                         <span>
                           {new Date(memory.created_at).toLocaleDateString()}

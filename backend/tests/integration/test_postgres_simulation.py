@@ -115,7 +115,7 @@ async def test_postgres_run_tick_persists_events_and_time(postgres_session):
     events = await EventRepository(session).list_for_run(run.id)
 
     assert result.tick_no == 1
-    assert result.world_time == "2026-03-02T07:05:00+00:00"
+    assert result.world_time == "2026-03-02T06:05:00+00:00"
     assert updated_run is not None
     assert updated_run.current_tick == 1
     assert len(events) == 1

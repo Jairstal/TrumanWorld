@@ -32,3 +32,8 @@ export function relationshipTone(value: number) {
   if (value >= 0.45) return "bg-amber-400";
   return "bg-slate-300";
 }
+
+export function formatAgentScore(value?: number | null): string {
+  if (value == null || Number.isNaN(value)) return "0.00";
+  return value.toFixed(2);
+}

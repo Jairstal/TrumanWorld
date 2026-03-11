@@ -25,12 +25,21 @@ class MemoryCache:
             cache_data: Pre-loaded memory data from build_agent_memory_cache.
                 Structure: {
                     "short_term": [...],
+                    "medium_term": [...],
                     "long_term": [...],
                     "about_others": {other_agent_id: [...]},
                     "all": [...]
                 }
         """
         self._cache = cache_data or {}
+
+    @staticmethod
+    def _memory_score(memory: dict[str, Any]) -> tuple[float, float, int]:
+        return (
+            float(memory.get("importance") or 0.0),
+            float(memory.get("self_relevance") or 0.0),
+            int(memory.get("tick_no") or 0),
+        )
 
     def search_memories(
         self,
@@ -42,7 +51,7 @@ class MemoryCache:
 
         Args:
             query: Search keyword (case-insensitive substring match)
-            category: Memory category to search ("short_term", "long_term", "all")
+            category: Memory category to search ("short_term", "medium_term", "long_term", "all")
             limit: Maximum number of results
 
         Returns:
@@ -65,12 +74,7 @@ class MemoryCache:
                 matching.append(mem)
 
         # Sort by importance (descending), then by tick_no (most recent first)
-        matching.sort(
-            key=lambda m: (
-                -(m.get("importance") or 0),  # Higher importance first
-                -(m.get("tick_no") or 0),  # More recent first (as secondary sort)
-            )
-        )
+        matching.sort(key=lambda m: self._memory_score(m), reverse=True)
 
         return matching[:limit]
 
@@ -82,7 +86,7 @@ class MemoryCache:
         """Get most recent memories.
 
         Args:
-            category: Memory category filter ("short_term", "long_term", "all")
+            category: Memory category filter ("short_term", "medium_term", "long_term", "all")
             limit: Maximum number of results
 
         Returns:

@@ -737,6 +737,76 @@ async def test_simulation_service_updates_relationships_from_talk_events(db_sess
 
 
 @pytest.mark.asyncio
+async def test_talk_memories_use_subjective_importance_per_agent(db_session):
+    run = SimulationRun(
+        id="run-memory-subjective",
+        name="subjective",
+        status="running",
+        current_tick=0,
+        tick_minutes=5,
+    )
+    plaza = Location(
+        id="loc-plaza-subjective",
+        run_id="run-memory-subjective",
+        name="Plaza",
+        location_type="plaza",
+        capacity=4,
+    )
+    alice = Agent(
+        id="alice-subjective",
+        run_id="run-memory-subjective",
+        name="Alice",
+        occupation="resident",
+        home_location_id=plaza.id,
+        current_location_id=plaza.id,
+        current_goal="talk",
+        personality={},
+        profile={},
+        status={},
+        current_plan={},
+    )
+    bob = Agent(
+        id="bob-subjective",
+        run_id="run-memory-subjective",
+        name="Bob",
+        occupation="resident",
+        home_location_id=plaza.id,
+        current_location_id=plaza.id,
+        current_goal="rest",
+        personality={},
+        profile={},
+        status={},
+        current_plan={},
+    )
+
+    db_session.add_all([run, plaza, alice, bob])
+    await db_session.commit()
+
+    service = SimulationService(db_session)
+    await service.run_tick(
+        "run-memory-subjective",
+        [
+            ActionIntent(
+                agent_id="alice-subjective",
+                action_type="talk",
+                target_agent_id="bob-subjective",
+                payload={"message": "I am really worried about you."},
+            )
+        ],
+    )
+
+    alice_memories = await AgentRepository(db_session).list_recent_memories("alice-subjective")
+    bob_memories = await AgentRepository(db_session).list_recent_memories("bob-subjective")
+
+    assert len(alice_memories) == 1
+    assert len(bob_memories) == 1
+    assert alice_memories[0].importance < bob_memories[0].importance
+    assert alice_memories[0].memory_category == "long_term"
+    assert bob_memories[0].memory_category == "long_term"
+    assert alice_memories[0].self_relevance < bob_memories[0].self_relevance
+
+
+@pytest.mark.asyncio
 async def test_run_tick_isolated_with_separate_sessions(db_session):
     """Test that run_tick_isolated properly handles session isolation.
 

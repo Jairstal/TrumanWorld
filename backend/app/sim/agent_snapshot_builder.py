@@ -27,8 +27,9 @@ async def build_agent_memory_cache(
 
     避免在 anyio task group 中创建 AsyncSession（greenlet 冲突问题）。
     每个 agent 的记忆缓存包含：
-    - short_term: 短期记忆（最近事件）
-    - long_term: 长期记忆（重要事件）
+    - short_term: 短期记忆
+    - medium_term: 中期记忆
+    - long_term: 长期记忆
     - about_others: 关于其他 agent 的记忆
     """
     from sqlalchemy import select
@@ -50,7 +51,9 @@ async def build_agent_memory_cache(
         memories = result.scalars().all()
 
         short_term: list[dict] = []
+        medium_term: list[dict] = []
         long_term: list[dict] = []
+        all_memories: list[dict] = []
         about_others: dict[str, list[dict]] = {}
 
         for mem in memories:
@@ -62,12 +65,17 @@ async def build_agent_memory_cache(
                 "memory_type": mem.memory_type,
                 "memory_category": mem.memory_category,
                 "importance": mem.importance,
+                "event_importance": mem.event_importance,
+                "self_relevance": mem.self_relevance,
                 "related_agent_id": mem.related_agent_id,
                 "related_agent_name": agent_names.get(mem.related_agent_id),
                 "location_id": mem.location_id,
             }
+            all_memories.append(mem_dict)
             if mem.memory_category == "short_term":
                 short_term.append(mem_dict)
+            elif mem.memory_category == "medium_term":
+                medium_term.append(mem_dict)
             else:
                 long_term.append(mem_dict)
             if mem.related_agent_id:
@@ -77,9 +85,10 @@ async def build_agent_memory_cache(
 
         return agent_id, {
             "short_term": short_term[:10],
+            "medium_term": medium_term[:15],
             "long_term": long_term[:20],
             "about_others": about_others,
-            "all": short_term[:10] + long_term[:20],
+            "all": all_memories[:30],
         }
 
     results = await asyncio.gather(*[_load_one_agent_memories(a) for a in agents])

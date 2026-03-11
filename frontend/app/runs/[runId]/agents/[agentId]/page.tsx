@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { AgentAvatar } from "@/components/agent-avatar";
-import { inferAgentStatus, relationshipTone } from "@/lib/agent-utils";
+import { formatAgentScore, inferAgentStatus, relationshipTone } from "@/lib/agent-utils";
 import { MetricChip } from "@/components/metric-chip";
 import { getAgentResult, getWorldResult } from "@/lib/api";
 import { describeAgentEvent } from "@/lib/event-utils";
@@ -348,15 +348,22 @@ export default async function AgentPage({ params }: AgentPageProps) {
                             <div className="flex shrink-0 flex-col items-end gap-1">
                               {!isLowSignal && (
                                 <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] text-violet-600">
-                                  ★ {memory.importance}
+                                  ★ {formatAgentScore(memory.importance)}
                                 </span>
                               )}
+                              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-500">
+                                {memory.memory_category}
+                              </span>
                               {memory.related_agent_name ? (
                                 <span className="rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] text-rose-600">
                                   {memory.related_agent_name}
                                 </span>
                               ) : null}
                             </div>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-500">
+                            <span>事件显著性 {formatAgentScore(memory.event_importance)}</span>
+                            <span>主体相关性 {formatAgentScore(memory.self_relevance)}</span>
                           </div>
                         </article>
                       );

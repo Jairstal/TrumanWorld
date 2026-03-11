@@ -13,7 +13,7 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.sim.event_utils import build_event
-from app.sim.memory_constants import determine_memory_category
+from app.sim.memory_constants import calculate_memory_importance, determine_memory_category
 from app.sim.runner import TickResult
 from app.sim.world import WorldState
 from app.store.repositories import (
@@ -124,6 +124,7 @@ class PersistenceManager:
             self.agent_repo.list_for_run(run_id),
             self.location_repo.list_for_run(run_id),
         )
+        agent_map = {a.id: a for a in agents_list}
         agent_name_map = {a.id: a.name for a in agents_list}
         location_name_map = {loc.id: loc.name for loc in locations_list}
         memories: list[Memory] = []
@@ -134,10 +135,21 @@ class PersistenceManager:
             for agent_id, content, summary, related_agent_id in self._build_memory_records(
                 event, agent_name_map, location_name_map
             ):
-                # Determine memory category based on importance and event type
+                perspective = self._determine_perspective(event, agent_id)
+                relationship_strength = await self._relationship_strength(
+                    run_id=run_id,
+                    agent_id=agent_id,
+                    related_agent_id=related_agent_id,
+                )
+                memory_importance = calculate_memory_importance(
+                    event_importance=event.importance,
+                    perspective=perspective,
+                    relationship_strength=relationship_strength,
+                    goal_relevance=self._is_goal_relevant(event, agent_map.get(agent_id)),
+                    location_relevance=self._is_location_relevant(event, agent_map.get(agent_id)),
+                )
                 memory_category = determine_memory_category(
-                    event_type=event.event_type,
-                    importance=event.importance,
+                    importance=memory_importance,
                     tick_age=0,  # New memory, age is 0
                 )
 
@@ -151,7 +163,9 @@ class PersistenceManager:
                         memory_category=memory_category,
                         content=content,
                         summary=summary,
-                        importance=event.importance,
+                        importance=memory_importance,
+                        event_importance=event.importance,
+                        self_relevance=self._perspective_relevance(perspective),
                         related_agent_id=related_agent_id,
                         location_id=event.location_id,
                         source_event_id=event.id,
@@ -175,6 +189,8 @@ class PersistenceManager:
             agent_repo.list_for_run(run_id),
             location_repo.list_for_run(run_id),
         )
+        rel_repo = RelationshipRepository(session)
+        agent_map = {a.id: a for a in agents}
         agent_name_map = {a.id: a.name for a in agents}
         location_name_map = {loc.id: loc.name for loc in locations}
 
@@ -186,10 +202,22 @@ class PersistenceManager:
             for agent_id, content, summary, related_agent_id in self._build_memory_records(
                 event, agent_name_map, location_name_map
             ):
-                # Determine memory category based on importance and event type
+                perspective = self._determine_perspective(event, agent_id)
+                relationship_strength = await self._relationship_strength_with_repo(
+                    rel_repo=rel_repo,
+                    run_id=run_id,
+                    agent_id=agent_id,
+                    related_agent_id=related_agent_id,
+                )
+                memory_importance = calculate_memory_importance(
+                    event_importance=event.importance,
+                    perspective=perspective,
+                    relationship_strength=relationship_strength,
+                    goal_relevance=self._is_goal_relevant(event, agent_map.get(agent_id)),
+                    location_relevance=self._is_location_relevant(event, agent_map.get(agent_id)),
+                )
                 memory_category = determine_memory_category(
-                    event_type=event.event_type,
-                    importance=event.importance,
+                    importance=memory_importance,
                     tick_age=0,  # New memory, age is 0
                 )
 
@@ -203,7 +231,9 @@ class PersistenceManager:
                         memory_category=memory_category,
                         content=content,
                         summary=summary,
-                        importance=event.importance,
+                        importance=memory_importance,
+                        event_importance=event.importance,
+                        self_relevance=self._perspective_relevance(perspective),
                         related_agent_id=related_agent_id,
                         location_id=event.location_id,
                         source_event_id=event.id,
@@ -360,6 +390,70 @@ class PersistenceManager:
                 event.target_agent_id,
             )
         ]
+
+    @staticmethod
+    def _determine_perspective(event: Event, agent_id: str) -> str:
+        if agent_id == event.actor_agent_id:
+            return "actor"
+        if agent_id == event.target_agent_id:
+            return "target"
+        return "observer"
+
+    @staticmethod
+    def _perspective_relevance(perspective: str) -> float:
+        if perspective == "target":
+            return 1.0
+        if perspective == "actor":
+            return 0.8
+        return 0.4
+
+    @staticmethod
+    def _is_goal_relevant(event: Event, agent: "Agent | None") -> bool:
+        if agent is None or not agent.current_goal:
+            return False
+        goal = agent.current_goal.lower()
+        if event.event_type in goal:
+            return True
+        return event.event_type == "move" and goal.startswith("move:")
+
+    @staticmethod
+    def _is_location_relevant(event: Event, agent: "Agent | None") -> bool:
+        if agent is None:
+            return False
+        return bool(
+            event.location_id
+            and (event.location_id == agent.current_location_id or event.location_id == agent.home_location_id)
+        )
+
+    async def _relationship_strength(
+        self,
+        *,
+        run_id: str,
+        agent_id: str,
+        related_agent_id: str | None,
+    ) -> float:
+        return await self._relationship_strength_with_repo(
+            rel_repo=self.relationship_repo,
+            run_id=run_id,
+            agent_id=agent_id,
+            related_agent_id=related_agent_id,
+        )
+
+    async def _relationship_strength_with_repo(
+        self,
+        *,
+        rel_repo: RelationshipRepository,
+        run_id: str,
+        agent_id: str,
+        related_agent_id: str | None,
+    ) -> float:
+        if not related_agent_id:
+            return 0.0
+        relation = await rel_repo.get_pair(run_id, agent_id, related_agent_id)
+        if relation is None:
+            return 0.0
+        components = [relation.familiarity, max(relation.trust, 0.0), max(relation.affinity, 0.0)]
+        return sum(components) / len(components)
 
 
 # ─── Schedule-based goal helpers ─────────────────────────────────────────────

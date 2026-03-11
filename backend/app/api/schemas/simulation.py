@@ -259,9 +259,12 @@ class AgentEventResponse(BaseModel):
 class AgentMemoryResponse(BaseModel):
     id: str = Field(..., description="记忆 ID")
     memory_type: str = Field(..., description="记忆类型", examples=["recent", "episodic", "reflection"])
+    memory_category: str = Field(..., description="记忆层级", examples=["short_term", "medium_term", "long_term"])
     summary: str | None = Field(None, description="记忆摘要")
     content: str = Field(..., description="记忆内容")
     importance: float | None = Field(None, description="重要性", ge=0, le=1)
+    event_importance: float | None = Field(None, description="事件客观显著性", ge=0, le=1)
+    self_relevance: float | None = Field(None, description="主体相关性", ge=0, le=1)
     related_agent_id: str | None = Field(None, description="关联 agent ID")
     related_agent_name: str | None = Field(None, description="关联 agent 名称")
 

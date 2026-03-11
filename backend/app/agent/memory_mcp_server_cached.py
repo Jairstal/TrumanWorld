@@ -41,7 +41,7 @@ MEMORY_TOOLS_DEFS = [
 参数：
 - query: 搜索关键词（如人名、地点、事件类型）
 - limit: 返回条数，默认5
-- category: 记忆类别，默认 long_term（长期记忆), short_term(临时记忆), all(所有)""",
+- category: 记忆类别，默认 long_term（长期记忆), medium_term(中期记忆), short_term(临时记忆), all(所有)""",
         inputSchema={
             "type": "object",
             "properties": {
@@ -49,8 +49,8 @@ MEMORY_TOOLS_DEFS = [
                 "limit": {"type": "integer", "description": "返回条数，默认5", "default": 5},
                 "category": {
                     "type": "string",
-                    "description": "记忆类别: long_term(长期记忆,搜索)、 short_term(临时记忆,最近发生), all(所有)",
-                    "enum": ["long_term", "short_term", "all"],
+                    "description": "记忆类别: long_term(长期记忆,搜索)、 medium_term(中期记忆)、 short_term(临时记忆,最近发生), all(所有)",
+                    "enum": ["long_term", "medium_term", "short_term", "all"],
                     "default": "long_term",
                 },
             },
@@ -74,8 +74,8 @@ MEMORY_TOOLS_DEFS = [
                 "limit": {"type": "integer", "description": "返回条数，默认5", "default": 5},
                 "category": {
                     "type": "string",
-                    "description": "记忆类别: long_term(长期记忆), short_term(临时记忆,默认), all(所有)",
-                    "enum": ["long_term", "short_term", "all"],
+                    "description": "记忆类别: long_term(长期记忆), medium_term(中期记忆), short_term(临时记忆,默认), all(所有)",
+                    "enum": ["long_term", "medium_term", "short_term", "all"],
                     "default": "short_term",
                 },
             },

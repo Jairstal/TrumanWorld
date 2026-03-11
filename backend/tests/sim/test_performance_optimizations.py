@@ -218,6 +218,7 @@ class TestBuildAgentMemoryCacheParallel:
         assert agent.id in result
         cache = result[agent.id]
         assert "short_term" in cache
+        assert "medium_term" in cache
         assert "long_term" in cache
         assert "about_others" in cache
         assert "all" in cache

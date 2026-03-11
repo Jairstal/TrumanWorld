@@ -3,10 +3,9 @@
 import pytest
 
 from app.sim.memory_constants import (
-    EVENT_IMPORTANCE_DEFAULTS,
-    IMPORTANCE_MULTIPLIERS,
     MemoryCategory,
     calculate_event_importance,
+    calculate_memory_importance,
     determine_memory_category,
     should_consolidate_memory,
 )
@@ -28,27 +27,27 @@ class TestCalculateEventImportance:
     """Tests for calculate_event_importance function."""
 
     def test_talk_event_has_default_importance(self):
-        """Talk events should have 0.7 base importance."""
+        """Talk events should have moderate objective salience."""
         importance = calculate_event_importance("talk", {})
-        assert importance == 0.7
+        assert importance == 0.55
 
     def test_work_event_has_medium_importance(self):
-        """Work events should have 0.4 base importance."""
+        """Routine work should stay low salience."""
         importance = calculate_event_importance("work", {})
-        assert importance == 0.4
-
-    def test_move_event_has_low_importance(self):
-        """Move events should have 0.1 base importance."""
-        importance = calculate_event_importance("move", {})
-        assert importance == 0.1
-
-    def test_rest_event_has_low_importance(self):
-        """Rest events should have 0.2 base importance."""
-        importance = calculate_event_importance("rest", {})
         assert importance == 0.2
 
+    def test_move_event_has_low_importance(self):
+        """Movement should be almost pure noise."""
+        importance = calculate_event_importance("move", {})
+        assert importance == 0.08
+
+    def test_rest_event_has_low_importance(self):
+        """Rest should be the lowest salience routine event."""
+        importance = calculate_event_importance("rest", {})
+        assert importance == 0.03
+
     def test_unknown_event_type_has_default_importance(self):
-        """Unknown event types should have 0.3 base importance."""
+        """Unknown events should be treated as mildly notable."""
         importance = calculate_event_importance("unknown_type", {})
         assert importance == 0.3
 
@@ -75,7 +74,7 @@ class TestCalculateEventImportance:
         normal = calculate_event_importance("talk", {})
         first = calculate_event_importance("talk", {}, is_first_interaction=True)
         assert first > normal
-        assert first == 0.7 * IMPORTANCE_MULTIPLIERS["first_interaction"]
+        assert first == pytest.approx(0.65)
 
     def test_importance_clamped_to_max_1(self):
         """Importance should never exceed 1.0."""
@@ -93,38 +92,76 @@ class TestCalculateEventImportance:
         assert importance >= 0.0
 
 
+class TestCalculateMemoryImportance:
+    """Tests for subjective memory scoring."""
+
+    def test_target_memory_is_stronger_than_actor_for_same_event(self):
+        actor_score = calculate_memory_importance(
+            event_importance=0.55,
+            perspective="actor",
+            relationship_strength=0.2,
+        )
+        target_score = calculate_memory_importance(
+            event_importance=0.55,
+            perspective="target",
+            relationship_strength=0.2,
+        )
+        assert target_score > actor_score
+
+    def test_goal_and_location_relevance_raise_subjective_importance(self):
+        baseline = calculate_memory_importance(
+            event_importance=0.2,
+            perspective="observer",
+            relationship_strength=0.0,
+        )
+        boosted = calculate_memory_importance(
+            event_importance=0.2,
+            perspective="observer",
+            relationship_strength=0.0,
+            goal_relevance=True,
+            location_relevance=True,
+        )
+        assert boosted > baseline
+
+    def test_subjective_importance_is_clamped(self):
+        score = calculate_memory_importance(
+            event_importance=0.95,
+            perspective="target",
+            relationship_strength=1.0,
+            goal_relevance=True,
+            location_relevance=True,
+        )
+        assert score == 1.0
+
+
 class TestDetermineMemoryCategory:
     """Tests for determine_memory_category function."""
 
     def test_high_importance_becomes_long_term(self):
-        """High importance (>= 0.7) should immediately become long_term."""
-        category = determine_memory_category("talk", importance=0.8)
+        """Strongly relevant memories should immediately become long_term."""
+        category = determine_memory_category(importance=0.8)
         assert category == MemoryCategory.LONG_TERM
 
     def test_medium_importance_becomes_medium_term(self):
-        """Medium importance (>= 0.5) should become medium_term."""
-        category = determine_memory_category("talk", importance=0.6)
+        """Mid-salience memories should become medium_term."""
+        category = determine_memory_category(importance=0.6)
         assert category == MemoryCategory.MEDIUM_TERM
 
     def test_low_importance_new_memory_is_short_term(self):
         """Low importance new memory (tick_age=0) should be short_term."""
-        category = determine_memory_category("move", importance=0.1, tick_age=0)
+        category = determine_memory_category(importance=0.1, tick_age=0)
         assert category == MemoryCategory.SHORT_TERM
 
     def test_old_short_memory_becomes_medium_term(self):
         """Memory older than 30 minutes should become medium_term."""
         # tick_minutes=5, so 6 ticks = 30 minutes
-        category = determine_memory_category(
-            "move", importance=0.1, tick_age=6, tick_minutes=5
-        )
+        category = determine_memory_category(importance=0.1, tick_age=6, tick_minutes=5)
         assert category == MemoryCategory.MEDIUM_TERM
 
     def test_very_old_memory_becomes_long_term(self):
         """Memory older than 6 hours should become long_term."""
         # tick_minutes=5, so 72 ticks = 360 minutes = 6 hours
-        category = determine_memory_category(
-            "move", importance=0.1, tick_age=73, tick_minutes=5
-        )
+        category = determine_memory_category(importance=0.1, tick_age=73, tick_minutes=5)
         assert category == MemoryCategory.LONG_TERM
 
 

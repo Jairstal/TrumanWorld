@@ -149,9 +149,12 @@ async def get_agent(
             AgentMemoryResponse(
                 id=memory.id,
                 memory_type=memory.memory_type,
+                memory_category=memory.memory_category,
                 summary=memory.summary,
                 content=memory.content,
                 importance=memory.importance,
+                event_importance=memory.event_importance,
+                self_relevance=memory.self_relevance,
                 related_agent_id=memory.related_agent_id,
                 related_agent_name=(
                     agent_name_map.get(memory.related_agent_id, memory.related_agent_id)

@@ -33,6 +33,17 @@ def test_search_memories_filters_by_query_and_category():
                 "summary": "Served coffee",
                 "tick_no": 6,
                 "memory_category": "short_term",
+                "self_relevance": 0.2,
+            }
+        ],
+        "medium_term": [
+            {
+                "id": "mem-medium-cafe",
+                "content": "Bob mentioned the cafe may close soon.",
+                "summary": "Cafe may close",
+                "tick_no": 7,
+                "memory_category": "medium_term",
+                "self_relevance": 0.5,
             }
         ],
         "long_term": [
@@ -42,6 +53,7 @@ def test_search_memories_filters_by_query_and_category():
                 "summary": "Talked with Bob",
                 "tick_no": 5,
                 "memory_category": "long_term",
+                "self_relevance": 0.9,
                 "related_agent_id": "agent-bob",
                 "related_agent_name": "Bob",
             },
@@ -51,6 +63,7 @@ def test_search_memories_filters_by_query_and_category():
                 "summary": "Park walk",
                 "tick_no": 3,
                 "memory_category": "long_term",
+                "self_relevance": 0.1,
             },
         ],
         "all": [
@@ -60,6 +73,15 @@ def test_search_memories_filters_by_query_and_category():
                 "summary": "Served coffee",
                 "tick_no": 6,
                 "memory_category": "short_term",
+                "self_relevance": 0.2,
+            },
+            {
+                "id": "mem-medium-cafe",
+                "content": "Bob mentioned the cafe may close soon.",
+                "summary": "Cafe may close",
+                "tick_no": 7,
+                "memory_category": "medium_term",
+                "self_relevance": 0.5,
             },
             {
                 "id": "mem-long-bob",
@@ -67,6 +89,7 @@ def test_search_memories_filters_by_query_and_category():
                 "summary": "Talked with Bob",
                 "tick_no": 5,
                 "memory_category": "long_term",
+                "self_relevance": 0.9,
                 "related_agent_id": "agent-bob",
                 "related_agent_name": "Bob",
             },
@@ -76,6 +99,7 @@ def test_search_memories_filters_by_query_and_category():
                 "summary": "Park walk",
                 "tick_no": 3,
                 "memory_category": "long_term",
+                "self_relevance": 0.1,
             },
         ],
     }
@@ -89,7 +113,11 @@ def test_search_memories_filters_by_query_and_category():
 
     # Search in all categories
     results = cache.search_memories(query="cafe", category="all", limit=5)
-    assert len(results) == 2  # mem-short-cafe and mem-long-bob
+    assert [memory["id"] for memory in results] == [
+        "mem-long-bob",
+        "mem-medium-cafe",
+        "mem-short-cafe",
+    ]
 
     # Search with no matches
     results = cache.search_memories(query="nonexistent", category="all", limit=5)
@@ -103,17 +131,23 @@ def test_get_recent_memories_respects_category_and_limit():
             {"id": "st1", "tick_no": 10, "memory_category": "short_term"},
             {"id": "st2", "tick_no": 9, "memory_category": "short_term"},
         ],
+        "medium_term": [
+            {"id": "mt1", "tick_no": 8, "memory_category": "medium_term"},
+            {"id": "mt2", "tick_no": 7, "memory_category": "medium_term"},
+        ],
         "long_term": [
-            {"id": "lt1", "tick_no": 8, "memory_category": "long_term"},
-            {"id": "lt2", "tick_no": 7, "memory_category": "long_term"},
-            {"id": "lt3", "tick_no": 6, "memory_category": "long_term"},
+            {"id": "lt1", "tick_no": 6, "memory_category": "long_term"},
+            {"id": "lt2", "tick_no": 5, "memory_category": "long_term"},
+            {"id": "lt3", "tick_no": 4, "memory_category": "long_term"},
         ],
         "all": [
             {"id": "st1", "tick_no": 10, "memory_category": "short_term"},
             {"id": "st2", "tick_no": 9, "memory_category": "short_term"},
-            {"id": "lt1", "tick_no": 8, "memory_category": "long_term"},
-            {"id": "lt2", "tick_no": 7, "memory_category": "long_term"},
-            {"id": "lt3", "tick_no": 6, "memory_category": "long_term"},
+            {"id": "mt1", "tick_no": 8, "memory_category": "medium_term"},
+            {"id": "mt2", "tick_no": 7, "memory_category": "medium_term"},
+            {"id": "lt1", "tick_no": 6, "memory_category": "long_term"},
+            {"id": "lt2", "tick_no": 5, "memory_category": "long_term"},
+            {"id": "lt3", "tick_no": 4, "memory_category": "long_term"},
         ],
     }
 
@@ -121,7 +155,11 @@ def test_get_recent_memories_respects_category_and_limit():
 
     # Get all recent
     results = cache.get_recent_memories(category="all", limit=3)
-    assert [m["id"] for m in results] == ["st1", "st2", "lt1"]
+    assert [m["id"] for m in results] == ["st1", "st2", "mt1"]
+
+    # Get medium_term only
+    results = cache.get_recent_memories(category="medium_term", limit=2)
+    assert [m["id"] for m in results] == ["mt1", "mt2"]
 
     # Get long_term only
     results = cache.get_recent_memories(category="long_term", limit=2)

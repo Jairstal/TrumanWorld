@@ -9,13 +9,18 @@ from app.infra.settings import Settings
 
 def build_sdk_env(settings: Settings) -> dict[str, str]:
     env: dict[str, str] = {}
-    if settings.anthropic_api_key:
-        env["ANTHROPIC_API_KEY"] = settings.anthropic_api_key
-    if settings.anthropic_base_url:
-        env["ANTHROPIC_BASE_URL"] = settings.anthropic_base_url
+    anthropic_api_key = getattr(settings, "anthropic_api_key", None)
+    anthropic_base_url = getattr(settings, "anthropic_base_url", None)
+    isolated_home_enabled = bool(getattr(settings, "claude_sdk_isolated_home_enabled", False))
+    isolated_home_dir = getattr(settings, "claude_sdk_home_dir", None)
 
-    if settings.claude_sdk_isolated_home_enabled and settings.claude_sdk_home_dir is not None:
-        home_dir = settings.claude_sdk_home_dir
+    if anthropic_api_key:
+        env["ANTHROPIC_API_KEY"] = anthropic_api_key
+    if anthropic_base_url:
+        env["ANTHROPIC_BASE_URL"] = anthropic_base_url
+
+    if isolated_home_enabled and isolated_home_dir is not None:
+        home_dir = isolated_home_dir
         xdg_dir = home_dir / "xdg"
         cache_dir = home_dir / "cache"
         state_dir = home_dir / "state"
@@ -30,7 +35,7 @@ def build_sdk_env(settings: Settings) -> dict[str, str]:
 
 
 def apply_sdk_isolation(options: ClaudeAgentOptions, settings: Settings) -> ClaudeAgentOptions:
-    if not settings.claude_sdk_isolated_home_enabled:
+    if not bool(getattr(settings, "claude_sdk_isolated_home_enabled", False)):
         return options
     return ClaudeAgentOptions(
         tools=options.tools,

@@ -63,6 +63,8 @@ async def test_get_agent_returns_state_and_related_data(client, db_session):
     assert body["recent_events"][0]["event_type"] == "talk"
     assert len(body["memories"]) == 1
     assert body["memories"][0]["summary"] == "Met Bob"
+    assert body["memories"][0]["memory_category"] == "short_term"
+    assert body["memories"][0]["event_importance"] == 0.0
     assert len(body["relationships"]) == 1
     assert body["relationships"][0]["other_agent_id"] == "bob"
 
@@ -149,6 +151,7 @@ async def test_get_agent_returns_generated_tick_memories(client, db_session):
     assert len(body["memories"]) == 1
     # 记忆摘要使用地点名称而非 ID
     assert body["memories"][0]["summary"] == "Moved to Park"
+    assert body["memories"][0]["memory_category"] == "short_term"
 
 
 @pytest.mark.asyncio
@@ -197,6 +200,7 @@ async def test_get_agent_returns_generated_talk_memory_for_target(client, db_ses
     assert len(body["memories"]) == 1
     # 对话记忆包含对方的名字（message 由 LLM 生成，此处为空）
     assert "Alice" in body["memories"][0]["summary"]
+    assert body["memories"][0]["self_relevance"] >= 0.8
 
 
 @pytest.mark.asyncio
