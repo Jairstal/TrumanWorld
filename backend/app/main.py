@@ -34,6 +34,19 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: cleanup if needed
     info("Application shutting down")
+    try:
+        from app.sim.scheduler import get_scheduler
+
+        await get_scheduler().stop_all()
+    except Exception as e:
+        logger.warning(f"Failed to stop scheduler on shutdown: {e}")
+
+    try:
+        from app.agent.connection_pool import close_connection_pool
+
+        await close_connection_pool()
+    except Exception as e:
+        logger.warning(f"Failed to close connection pool on shutdown: {e}")
 
 
 def create_app() -> FastAPI:
