@@ -41,7 +41,10 @@ export type ApiResult<T> = {
 
 const DEFAULT_API_BASE_URL = "/api";
 // SSR 场景下相对路径无效，需要绝对地址
-const DEFAULT_INTERNAL_API_BASE_URL = "http://127.0.0.1:18080/api";
+const DEFAULT_INTERNAL_API_BASE_URL =
+  process.env.NODE_ENV === "production"
+    ? "http://backend.railway.internal/api"
+    : "http://127.0.0.1:18080/api";
 
 function resolveApiBaseUrl() {
   const publicBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
