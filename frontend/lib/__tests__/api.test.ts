@@ -1,16 +1,12 @@
 import {
-  getRun,
   getRunResult,
-  listRuns,
   listRunsResult,
-  getTimeline,
+  getTimelineResult,
   createRun,
   createRunResult,
-  startRun,
   startRunResult,
-  pauseRun,
-  resumeRun,
-  injectDirectorEvent,
+  pauseRunResult,
+  resumeRunResult,
   injectDirectorEventResult,
   deleteRunResult,
   restoreAllRunsResult,
@@ -26,35 +22,6 @@ const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>
 describe('API', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-  })
-
-  describe('getRun', () => {
-    it('returns run data on success', async () => {
-      const mockRun: RunSummary = { id: '1', name: 'Test', status: 'running' }
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockRun,
-      } as Response)
-
-      const result = await getRun('1')
-      expect(result).toEqual(mockRun)
-    })
-
-    it('returns null on error', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-      } as Response)
-
-      const result = await getRun('1')
-      expect(result).toBeNull()
-    })
-
-    it('returns null on network error', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'))
-
-      const result = await getRun('1')
-      expect(result).toBeNull()
-    })
   })
 
   describe('getRunResult', () => {
@@ -100,31 +67,6 @@ describe('API', () => {
     })
   })
 
-  describe('listRuns', () => {
-    it('returns runs array on success', async () => {
-      const mockRuns: RunSummary[] = [
-        { id: '1', name: 'Run 1', status: 'running' },
-        { id: '2', name: 'Run 2', status: 'paused' },
-      ]
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockRuns,
-      } as Response)
-
-      const result = await listRuns()
-      expect(result).toEqual(mockRuns)
-    })
-
-    it('returns empty array on error', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-      } as Response)
-
-      const result = await listRuns()
-      expect(result).toEqual([])
-    })
-  })
-
   describe('listRunsResult', () => {
     it('returns request_failed on non-404 error', async () => {
       mockFetch.mockResolvedValueOnce({
@@ -141,8 +83,8 @@ describe('API', () => {
     })
   })
 
-  describe('getTimeline', () => {
-    it('returns timeline on success', async () => {
+  describe('getTimelineResult', () => {
+    it('returns timeline payload on success', async () => {
       const mockTimeline = {
         run_id: '1',
         events: [
@@ -151,20 +93,30 @@ describe('API', () => {
       }
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        status: 200,
         json: async () => mockTimeline,
       } as Response)
 
-      const result = await getTimeline('1')
-      expect(result).toEqual(mockTimeline)
+      const result = await getTimelineResult('1')
+      expect(result).toEqual({
+        data: mockTimeline,
+        error: null,
+        status: 200,
+      })
     })
 
-    it('returns empty events on error', async () => {
+    it('returns request_failed on error', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 500,
       } as Response)
 
-      const result = await getTimeline('1')
-      expect(result).toEqual({ run_id: '1', events: [] })
+      const result = await getTimelineResult('1')
+      expect(result).toEqual({
+        data: null,
+        error: 'request_failed',
+        status: 500,
+      })
     })
   })
 
@@ -219,24 +171,8 @@ describe('API', () => {
     })
   })
 
-  describe('startRun', () => {
-    it('calls correct endpoint', async () => {
-      const mockRun: RunSummary = { id: '1', name: 'Test', status: 'running' }
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockRun,
-      } as Response)
-
-      await startRun('1')
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/runs/1/start'),
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
-  })
-
   describe('startRunResult', () => {
-    it('returns detailed start response', async () => {
+    it('calls correct endpoint and returns detailed start response', async () => {
       const mockRun: RunSummary = { id: '1', name: 'Test', status: 'running' }
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -245,6 +181,10 @@ describe('API', () => {
       } as Response)
 
       const result = await startRunResult('1')
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/runs/1/start'),
+        expect.objectContaining({ method: 'POST' })
+      )
       expect(result).toEqual({
         data: mockRun,
         error: null,
@@ -253,53 +193,66 @@ describe('API', () => {
     })
   })
 
-  describe('pauseRun', () => {
+  describe('pauseRunResult', () => {
     it('calls correct endpoint', async () => {
       const mockRun: RunSummary = { id: '1', name: 'Test', status: 'paused' }
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        status: 200,
         json: async () => mockRun,
       } as Response)
 
-      await pauseRun('1')
+      const result = await pauseRunResult('1')
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('/runs/1/pause'),
         expect.objectContaining({ method: 'POST' })
       )
+      expect(result).toEqual({
+        data: mockRun,
+        error: null,
+        status: 200,
+      })
     })
   })
 
-  describe('resumeRun', () => {
+  describe('resumeRunResult', () => {
     it('calls correct endpoint', async () => {
       const mockRun: RunSummary = { id: '1', name: 'Test', status: 'running' }
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        status: 200,
         json: async () => mockRun,
       } as Response)
 
-      await resumeRun('1')
+      const result = await resumeRunResult('1')
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('/runs/1/resume'),
         expect.objectContaining({ method: 'POST' })
       )
+      expect(result).toEqual({
+        data: mockRun,
+        error: null,
+        status: 200,
+      })
     })
   })
 
-  describe('injectDirectorEvent', () => {
+  describe('injectDirectorEventResult', () => {
     it('posts with event data', async () => {
       const mockResponse = { run_id: '1', status: 'ok' }
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      } as Response)
-
       const eventData = {
         event_type: 'announcement',
         payload: { message: 'Hello' },
         importance: 5,
       }
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => mockResponse,
+      } as Response)
 
-      await injectDirectorEvent('1', eventData)
+      const result = await injectDirectorEventResult('1', eventData)
+
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('/runs/1/director/events'),
         expect.objectContaining({
@@ -307,10 +260,13 @@ describe('API', () => {
           body: JSON.stringify(eventData),
         })
       )
+      expect(result).toEqual({
+        data: mockResponse,
+        error: null,
+        status: 200,
+      })
     })
-  })
 
-  describe('injectDirectorEventResult', () => {
     it('returns request_failed when post is rejected by server', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,

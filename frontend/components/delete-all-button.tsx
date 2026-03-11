@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteRun } from "@/lib/api";
+import { deleteRunResult } from "@/lib/api";
 import { useRuns } from "@/components/runs-provider";
 
 type Run = { id: string };
@@ -15,8 +15,12 @@ export function DeleteAllButton({ runs }: { runs: Run[] }) {
     if (!confirm(`确定要删除全部 ${runs.length} 个模拟运行吗？此操作不可撤销。`)) return;
     setIsDeletingAll(true);
     startTransition(async () => {
-      await Promise.all(runs.map((run) => deleteRun(run.id)));
+      const results = await Promise.all(runs.map((run) => deleteRunResult(run.id)));
       setIsDeletingAll(false);
+      const failedCount = results.filter((result) => !result.data).length;
+      if (failedCount > 0) {
+        alert(`批量删除未全部成功，失败 ${failedCount} 个。`);
+      }
       await refreshRuns();
     });
   };

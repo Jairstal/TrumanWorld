@@ -112,31 +112,6 @@ async function fetchResult<T>(path: string): Promise<ApiResult<T>> {
   return fetchResultUrl<T>(buildApiUrl(path));
 }
 
-async function safeFetch<T>(path: string, fallback: T): Promise<T> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const response = await fetch(buildApiUrl(path), {
-      cache: "no-store",
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      return fallback;
-    }
-
-    return (await response.json()) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 async function safePost<T>(path: string, body: unknown, fallback: T): Promise<T> {
   try {
     const controller = new AbortController();
@@ -203,29 +178,12 @@ async function postResult<T>(path: string, body: unknown): Promise<ApiResult<T>>
   }
 }
 
-export async function getRun(runId: string): Promise<RunSummary | null> {
-  return safeFetch<RunSummary | null>(`/runs/${runId}`, null);
-}
-
 export async function getRunResult(runId: string): Promise<ApiResult<RunSummary>> {
   return fetchResult<RunSummary>(`/runs/${runId}`);
 }
 
-export async function listRuns(): Promise<RunSummary[]> {
-  return safeFetch<RunSummary[]>("/runs", []);
-}
-
 export async function listRunsResult(): Promise<ApiResult<RunSummary[]>> {
   return fetchResult<RunSummary[]>("/runs");
-}
-
-export async function getTimeline(
-  runId: string,
-  filter?: TimelineFilter,
-): Promise<TimelineResponse> {
-  const params = buildTimelineParams(filter);
-  const query = params.toString() ? `?${params.toString()}` : "";
-  return safeFetch(`/runs/${runId}/timeline${query}`, { run_id: runId, events: [], total: 0, filtered: 0 });
 }
 
 export async function getTimelineResult(
@@ -324,24 +282,12 @@ export async function createRunResult(
   });
 }
 
-export async function startRun(runId: string): Promise<RunSummary | null> {
-  return safePost<RunSummary | null>(`/runs/${runId}/start`, {}, null);
-}
-
 export async function startRunResult(runId: string): Promise<ApiResult<RunSummary>> {
   return postResult<RunSummary>(`/runs/${runId}/start`, {});
 }
 
-export async function pauseRun(runId: string): Promise<RunSummary | null> {
-  return safePost<RunSummary | null>(`/runs/${runId}/pause`, {}, null);
-}
-
 export async function pauseRunResult(runId: string): Promise<ApiResult<RunSummary>> {
   return postResult<RunSummary>(`/runs/${runId}/pause`, {});
-}
-
-export async function resumeRun(runId: string): Promise<RunSummary | null> {
-  return safePost<RunSummary | null>(`/runs/${runId}/resume`, {}, null);
 }
 
 export async function resumeRunResult(runId: string): Promise<ApiResult<RunSummary>> {
@@ -350,18 +296,6 @@ export async function resumeRunResult(runId: string): Promise<ApiResult<RunSumma
 
 export async function advanceRunTickResult(runId: string): Promise<ApiResult<TickResponse>> {
   return postResult<TickResponse>(`/runs/${runId}/tick`, {});
-}
-
-export async function injectDirectorEvent(
-  runId: string,
-  input: {
-    event_type: string;
-    payload: Record<string, unknown>;
-    location_id?: string;
-    importance?: number;
-  },
-): Promise<{ run_id: string; status: string } | null> {
-  return safePost<{ run_id: string; status: string } | null>(`/runs/${runId}/director/events`, input, null);
 }
 
 export async function injectDirectorEventResult(
@@ -374,31 +308,6 @@ export async function injectDirectorEventResult(
   },
 ): Promise<ApiResult<{ run_id: string; status: string }>> {
   return postResult<{ run_id: string; status: string }>(`/runs/${runId}/director/events`, input);
-}
-
-async function safeDelete<T>(path: string, fallback: T): Promise<T> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const response = await fetch(buildApiUrl(path), {
-      method: "DELETE",
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      return fallback;
-    }
-
-    return (await response.json()) as T;
-  } catch {
-    return fallback;
-  }
 }
 
 async function deleteResult<T>(path: string): Promise<ApiResult<T>> {
@@ -436,10 +345,6 @@ async function deleteResult<T>(path: string): Promise<ApiResult<T>> {
       status: null,
     };
   }
-}
-
-export async function deleteRun(runId: string): Promise<{ run_id: string; status: string } | null> {
-  return safeDelete<{ run_id: string; status: string } | null>(`/runs/${runId}`, null);
 }
 
 export async function deleteRunResult(
