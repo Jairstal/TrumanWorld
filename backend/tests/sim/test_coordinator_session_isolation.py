@@ -264,3 +264,119 @@ async def test_load_tick_data_returns_director_plan_for_high_suspicion(db_sessio
     assert loaded.director_plan is not None, (
         "高怀疑度（0.9）应触发策略，director_plan 应为非 None。"
     )
+
+
+# ---------------------------------------------------------------------------
+# 测试 4: DayBoundaryCoordinator.run_planner_if_needed 前置语义验证
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_planner_if_needed_returns_false_outside_morning():
+    """非清晨时段调用 run_planner_if_needed 应返回 False，不触发 Planner。"""
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from datetime import datetime
+    from app.sim.day_boundary_coordinator import DayBoundaryCoordinator
+    from app.sim.world import WorldState
+
+    world = WorldState(
+        current_time=datetime(2026, 3, 2, 14, 0),  # 14:00 下午，非清晨
+        tick_minutes=5,
+    )
+    coordinator = DayBoundaryCoordinator()
+    mock_runtime = MagicMock()
+
+    result = await coordinator.run_planner_if_needed(
+        run_id="test-run",
+        tick_no=100,
+        world=world,
+        engine=MagicMock(),
+        agent_runtime=mock_runtime,
+    )
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_run_planner_if_needed_returns_false_when_engine_none():
+    """engine 为 None 时应短路返回 False，不触发 Planner。"""
+    from datetime import datetime
+    from unittest.mock import MagicMock
+    from app.sim.day_boundary_coordinator import DayBoundaryCoordinator
+    from app.sim.world import WorldState
+
+    world = WorldState(
+        current_time=datetime(2026, 3, 2, 6, 0),  # 06:00 清晨
+        tick_minutes=5,
+    )
+    coordinator = DayBoundaryCoordinator()
+
+    result = await coordinator.run_planner_if_needed(
+        run_id="test-run",
+        tick_no=0,
+        world=world,
+        engine=None,
+        agent_runtime=MagicMock(),
+    )
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_run_planner_if_needed_calls_planning_at_morning_boundary():
+    """06:00 清晨时段调用 run_planner_if_needed 应调用 run_morning_planning 并返回 True。"""
+    from datetime import datetime
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from app.sim.day_boundary_coordinator import DayBoundaryCoordinator
+    from app.sim.world import WorldState
+
+    world = WorldState(
+        current_time=datetime(2026, 3, 2, 6, 0),  # 06:00 清晨
+        tick_minutes=5,
+    )
+    coordinator = DayBoundaryCoordinator()
+
+    with patch(
+        "app.sim.day_boundary_coordinator.run_morning_planning", new_callable=AsyncMock
+    ) as mock_planning:
+        result = await coordinator.run_planner_if_needed(
+            run_id="test-run",
+            tick_no=0,
+            world=world,
+            engine=MagicMock(),
+            agent_runtime=MagicMock(),
+        )
+
+    assert result is True
+    mock_planning.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_method_no_longer_triggers_planner():
+    """run() 方法（向后兼容）在清晨时段不应再触发 Planner，只触发 Reflector 检测。"""
+    from datetime import datetime
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from app.sim.day_boundary_coordinator import DayBoundaryCoordinator
+    from app.sim.runner import TickResult
+    from app.sim.world import WorldState
+
+    world = WorldState(
+        current_time=datetime(2026, 3, 2, 6, 0),  # 06:00 清晨
+        tick_minutes=5,
+    )
+    result = TickResult(tick_no=1, world_time="2026-03-02T06:00:00", accepted=[], rejected=[])
+    coordinator = DayBoundaryCoordinator()
+
+    with patch(
+        "app.sim.day_boundary_coordinator.run_morning_planning", new_callable=AsyncMock
+    ) as mock_planning:
+        await coordinator.run(
+            run_id="test-run",
+            result=result,
+            world=world,
+            engine=MagicMock(),
+            agent_runtime=MagicMock(),
+        )
+
+    # run() 不再负责 Planner，应为 0 次
+    mock_planning.assert_not_awaited()

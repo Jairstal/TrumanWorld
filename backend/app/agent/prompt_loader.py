@@ -45,8 +45,8 @@ class PromptLoader:
             )
             lines.append("")
             period_label = {
-                "morning": "早晨",
-                "late_morning": "上午",
+                "dawn": "黎明",
+                "morning": "上午",
                 "noon": "中午",
                 "afternoon": "下午",
                 "evening": "傍晚",
@@ -69,7 +69,7 @@ class PromptLoader:
                     period_zh = period_label.get(key, key)
                     val_zh = plan_label.get(str(val), str(val))
                     is_current = (
-                        (key == "morning" and time_period in {"morning", "late_morning"})
+                        (key == "morning" and time_period in {"dawn", "morning"})
                         or (key == "daytime" and time_period in {"noon", "afternoon"})
                         or (key == "evening" and time_period == "evening")
                     )

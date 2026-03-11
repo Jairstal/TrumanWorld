@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { EVENT_MOVE } from "@/lib/simulation-protocol";
 import type { AgentSummary, WorldSnapshot } from "@/lib/types";
@@ -227,6 +227,25 @@ export function TownMap({
     originY: number;
   } | null>(null);
 
+  // 夜晚跳过检测
+  const [showNightSkip, setShowNightSkip] = useState(false);
+  const [nightSkipDay, setNightSkipDay] = useState(1);
+  const prevClockRef = useRef<{ hour: number; day: number } | null>(null);
+
+  useEffect(() => {
+    const curr = world.world_clock;
+    if (!curr) return;
+    const prev = prevClockRef.current;
+    if (prev !== null && prev.hour >= 21 && curr.hour <= 7 && curr.day > prev.day) {
+      setNightSkipDay(curr.day);
+      setShowNightSkip(true);
+      const timer = setTimeout(() => setShowNightSkip(false), 4500);
+      prevClockRef.current = { hour: curr.hour, day: curr.day };
+      return () => clearTimeout(timer);
+    }
+    prevClockRef.current = { hour: curr.hour, day: curr.day };
+  }, [world.world_clock]);
+
   const { nodes, links, movePaths, mainRoadPath, coastPath, heatConfig } = useMemo(() => buildMapData(world), [world]);
 
   // 昼夜循环效果
@@ -416,6 +435,26 @@ export function TownMap({
             style={{ backgroundColor: timeStyle.overlayColor }}
           />
         )}
+        {/* 夜晚跳过提示横幅 */}
+        <AnimatePresence>
+          {showNightSkip && (
+            <motion.div
+              key="night-skip-banner"
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2"
+            >
+              <div className="flex items-center gap-2 rounded-full bg-slate-900/85 px-4 py-2 text-sm shadow-lg backdrop-blur-sm">
+                <span className="text-base">🌙</span>
+                <span className="text-slate-400">→</span>
+                <span className="text-base">🌅</span>
+                <span className="font-medium text-amber-300">夜晚已过，第 {nightSkipDay} 天开始</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <svg
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
           className="h-full min-h-[420px] w-full touch-none"

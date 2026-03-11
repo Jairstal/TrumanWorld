@@ -822,14 +822,14 @@ async def get_world_snapshot(
     weekday_names_cn = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
 
     hour = world_time.hour
-    if hour < 6:
+    if hour < 5:
         time_period = "night"
         time_period_cn = "深夜"
-    elif hour < 9:
-        time_period = "morning"
-        time_period_cn = "早晨"
+    elif hour < 7:
+        time_period = "dawn"
+        time_period_cn = "黎明"
     elif hour < 12:
-        time_period = "late_morning"
+        time_period = "morning"
         time_period_cn = "上午"
     elif hour < 14:
         time_period = "noon"
@@ -837,7 +837,7 @@ async def get_world_snapshot(
     elif hour < 18:
         time_period = "afternoon"
         time_period_cn = "下午"
-    elif hour < 22:
+    elif hour < 21:
         time_period = "evening"
         time_period_cn = "傍晚"
     else:

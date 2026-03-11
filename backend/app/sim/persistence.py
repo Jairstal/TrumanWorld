@@ -351,8 +351,8 @@ class PersistenceManager:
 
 # Maps time-period values from WorldState._time_period() to current_plan keys
 _TIME_PERIOD_TO_PLAN_KEY: dict[str, str] = {
+    "dawn": "morning",
     "morning": "morning",
-    "late_morning": "morning",
     "noon": "daytime",
     "afternoon": "daytime",
     "evening": "evening",

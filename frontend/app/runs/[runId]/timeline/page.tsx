@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getApiBaseUrl } from "@/lib/api";
 import type { AgentSummary, TimelineEvent, TimelineResponse } from "@/lib/types";
 import { describeTimelineEvent, getEventMeta } from "@/lib/event-utils";
-import { simDayLabel } from "@/lib/world-utils";
+import { simDayLabelFromIso } from "@/lib/world-utils";
 
 const EVENT_TYPE_OPTIONS = [
   { value: "", label: "全部类型" },
@@ -187,7 +187,7 @@ export default function TimelinePage() {
           {timeline?.run_info && (
             <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-4 py-2 text-xs text-slate-600 shadow-xs">
               <span className="h-2 w-2 rounded-full bg-moss/60" />
-              世界时间 {simDayLabel(timeline.run_info.current_tick, timeline.run_info.tick_minutes)} {timeline.run_info.current_world_time_iso.substring(11, 16)}
+              世界时间 {simDayLabelFromIso(timeline.run_info.world_start_iso, timeline.run_info.current_world_time_iso)} {timeline.run_info.current_world_time_iso.substring(11, 16)}
               <span className="text-slate-400">·</span>
               每 Tick {timeline.run_info.tick_minutes} 分钟
             </div>
@@ -386,9 +386,14 @@ export default function TimelinePage() {
                     // 取该 tick 组第一个事件的世界时间
                     const firstEvent = events[0];
                     const worldTime = firstEvent?.world_time;
-                    // 从 tick 号计算模拟天数标签
-                    const tickMinutes = timeline.run_info?.tick_minutes ?? 5;
-                    const simDayStr = simDayLabel(tickNo, tickMinutes);
+                    // 从世界起始日期 + 该事件日期推算天数标签
+                    const worldStartIso = timeline.run_info?.world_start_iso ?? "";
+                    const eventDateIso = firstEvent?.world_date
+                      ? `${firstEvent.world_date}T00:00:00Z`
+                      : timeline.run_info?.current_world_time_iso ?? "";
+                    const simDayStr = worldStartIso && eventDateIso
+                      ? simDayLabelFromIso(worldStartIso, eventDateIso)
+                      : `第${Math.floor(tickNo * (timeline.run_info?.tick_minutes ?? 5) / 1440) + 1}天`;
 
                     return (
                       <div key={tick} className="rounded-[28px] border border-slate-200 bg-white/85 p-4 shadow-xs">

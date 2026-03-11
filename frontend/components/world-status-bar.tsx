@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useWorld } from "@/components/world-context";
 import { startRunResult, pauseRunResult } from "@/lib/api";
-import { formatSimTime, simDayLabel } from "@/lib/world-utils";
+import { formatSimTime } from "@/lib/world-utils";
 
 /** Format elapsed seconds as H:MM:SS or M:SS */
 function formatElapsed(seconds: number): string {
@@ -45,8 +45,8 @@ export function WorldStatusBar() {
         const calcElapsed = () => {
           const startMs = new Date(startedAt).getTime();
           const sessionSecs = Math.floor((Date.now() - startMs) / 1000);
-          // 如果 sessionSecs 异常大（超过 2 小时），认为是崩溃脏数据，不叠加
-          if (sessionSecs > 7200) {
+          // 如果 sessionSecs 异常大（超过 30 天），认为是崩溃脏数据，不叠加
+          if (sessionSecs > 2592000) {
             setElapsed(elapsedBase);
           } else {
             setElapsed(elapsedBase + Math.max(0, sessionSecs));
@@ -118,7 +118,7 @@ export function WorldStatusBar() {
       {/* 模拟时间 - 移到暂停按钮左侧 */}
       <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600">
         {world.world_clock
-          ? `${simDayLabel(world.run.current_tick ?? 0, world.run.tick_minutes ?? 5)} ${world.world_clock.time}`
+          ? `第${world.world_clock.day}天 ${world.world_clock.weekday_name_cn} ${world.world_clock.time}`
           : `模拟时间 ${formatSimTime(world)}`}
       </span>
 

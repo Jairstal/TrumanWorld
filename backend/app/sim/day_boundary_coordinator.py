@@ -20,6 +20,57 @@ logger = get_logger(__name__)
 
 
 class DayBoundaryCoordinator:
+    async def run_planner_if_needed(
+        self,
+        *,
+        run_id: str,
+        tick_no: int,
+        world: "WorldState",
+        engine,
+        agent_runtime: "AgentRuntime",
+    ) -> bool:
+        """在 agent 决策前运行 Planner（如果当前是清晨边界）。
+
+        返回 True 表示 Planner 已执行，调用方的 agent_data 应重新加载以获取新计划。
+        """
+        if engine is None or not should_run_planner(world):
+            return False
+        try:
+            await run_morning_planning(
+                run_id=run_id,
+                tick_no=tick_no,
+                world=world,
+                engine=engine,
+                agent_runtime=agent_runtime,
+            )
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Day boundary planner failed: {exc}")
+            return False
+
+    async def run_reflector_if_needed(
+        self,
+        *,
+        run_id: str,
+        tick_no: int,
+        world: "WorldState",
+        engine,
+        agent_runtime: "AgentRuntime",
+    ) -> None:
+        """在 tick 结束后运行 Reflector（如果当前是夜晚边界）。"""
+        if engine is None or not should_run_reflector(world):
+            return
+        try:
+            await run_evening_reflection(
+                run_id=run_id,
+                tick_no=tick_no,
+                world=world,
+                engine=engine,
+                agent_runtime=agent_runtime,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Day boundary reflector failed: {exc}")
+
     async def run(
         self,
         *,
@@ -29,25 +80,14 @@ class DayBoundaryCoordinator:
         engine,
         agent_runtime: "AgentRuntime",
     ) -> None:
-        if engine is None:
-            return
+        """向后兼容接口：在 tick 结束后仅处理 Reflector。
 
-        try:
-            if should_run_planner(world):
-                await run_morning_planning(
-                    run_id=run_id,
-                    tick_no=result.tick_no,
-                    world=world,
-                    engine=engine,
-                    agent_runtime=agent_runtime,
-                )
-            elif should_run_reflector(world):
-                await run_evening_reflection(
-                    run_id=run_id,
-                    tick_no=result.tick_no,
-                    world=world,
-                    engine=engine,
-                    agent_runtime=agent_runtime,
-                )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Day boundary task failed: {exc}")
+        Planner 已由 run_planner_if_needed() 在 agent 决策前提前执行。
+        """
+        await self.run_reflector_if_needed(
+            run_id=run_id,
+            tick_no=result.tick_no,
+            world=world,
+            engine=engine,
+            agent_runtime=agent_runtime,
+        )

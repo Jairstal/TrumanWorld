@@ -208,11 +208,32 @@ const WEEKDAY_NAMES_CN = ["周一", "周二", "周三", "周四", "周五", "周
 /**
  * 根据 tick 计算模拟世界天数（从第1天开始）和星期（第1天=周一）。
  * 返回如 "第1天 周一" 的字符串。
+ *
+ * @deprecated 此函数从 tick 累积推算天数，无法反映世界真实起始日期。
+ * 有 world_clock 时请直接读取 world_clock.day / world_clock.weekday_name_cn；
+ * Timeline 场景请改用 simDayLabelFromIso。
  */
 export function simDayLabel(tick: number, tickMinutes: number): string {
   const totalMinutes = tick * tickMinutes;
   const dayIndex = Math.floor(totalMinutes / 1440); // 1440 = 24 * 60
   const dayNumber = dayIndex + 1; // 从第1天开始
+  const weekday = WEEKDAY_NAMES_CN[dayIndex % 7];
+  return `第${dayNumber}天 ${weekday}`;
+}
+
+/**
+ * 根据世界起始 ISO 时间和当前世界 ISO 时间，推算天数和星期。
+ * 返回如 "第3天 周三" 的字符串。
+ * 适用于 Timeline 场景（使用 TimelineRunInfo.world_start_iso + current_world_time_iso）。
+ */
+export function simDayLabelFromIso(worldStartIso: string, currentWorldTimeIso: string): string {
+  const startDate = new Date(worldStartIso);
+  const currentDate = new Date(currentWorldTimeIso);
+  // 只比较日期部分（去掉时间），避免时区误差影响天数
+  const startDay = Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate());
+  const currentDay = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate());
+  const dayIndex = Math.floor((currentDay - startDay) / (1000 * 60 * 60 * 24));
+  const dayNumber = Math.max(1, dayIndex + 1);
   const weekday = WEEKDAY_NAMES_CN[dayIndex % 7];
   return `第${dayNumber}天 ${weekday}`;
 }

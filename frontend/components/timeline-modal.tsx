@@ -5,7 +5,7 @@ import { Modal } from "@/components/modal";
 import { getApiBaseUrl } from "@/lib/api";
 import type { AgentSummary, TimelineEvent, TimelineResponse } from "@/lib/types";
 import { describeTimelineEvent, getEventMeta } from "@/lib/event-utils";
-import { simDayLabel, tickToSimDayTime } from "@/lib/world-utils";
+import { simDayLabelFromIso, tickToSimDayTime } from "@/lib/world-utils";
 
 const EVENT_TYPE_OPTIONS = [
   { value: "", label: "全部类型" },
@@ -309,7 +309,7 @@ export function TimelineModal({ isOpen, onClose, runId }: TimelineModalProps) {
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <span className="h-1.5 w-1.5 rounded-full bg-moss/60" />
-                世界时间 {simDayLabel(timeline.run_info.current_tick, timeline.run_info.tick_minutes)} {timeline.run_info.current_world_time_iso.substring(11, 16)}
+                世界时间 {simDayLabelFromIso(timeline.run_info.world_start_iso, timeline.run_info.current_world_time_iso)} {timeline.run_info.current_world_time_iso.substring(11, 16)}
                 <span className="text-slate-300">·</span>
                 每 Tick {timeline.run_info.tick_minutes} 分钟
               </div>

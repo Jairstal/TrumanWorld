@@ -58,10 +58,33 @@ class IsolatedTickRunner:
             scenario=runtime_scenario,
         )
 
+        # ── 清晨边界：在 agent 决策前先执行 Planner，使当日第一个 tick 即可用新计划 ──
+        planner_ran = await self.day_boundary_coordinator.run_planner_if_needed(
+            run_id=run_id,
+            tick_no=loaded.run.current_tick,
+            world=loaded.world,
+            engine=engine,
+            agent_runtime=self.agent_runtime,
+        )
+
+        # 若 Planner 已写入新计划，重新加载 agent_data 使决策使用当日计划
+        if planner_ran:
+            async with AsyncSession(engine) as reload_session:
+                reload_scenario = create_scenario(loaded.run.scenario_type, reload_session)
+                reload_scenario.configure_runtime(self.agent_runtime)
+                reloaded = await load_tick_data(
+                    session=reload_session,
+                    run_id=run_id,
+                    scenario=reload_scenario,
+                )
+            agent_data = reloaded.agent_data
+        else:
+            agent_data = loaded.agent_data
+
         if not intents:
             intents, llm_records = await orchestrator.prepare_intents_from_data(
                 loaded.world,
-                loaded.agent_data,
+                agent_data,
                 engine,
                 run_id,
                 loaded.run.current_tick,
@@ -93,6 +116,7 @@ class IsolatedTickRunner:
             llm_records=llm_records,
             engine=engine,
         )
+        # ── 夜晚边界：tick 结束后执行 Reflector ──
         await self.day_boundary_coordinator.run(
             run_id=run_id,
             result=result,

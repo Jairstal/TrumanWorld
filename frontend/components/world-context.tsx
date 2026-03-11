@@ -69,8 +69,10 @@ export function WorldProvider({ runId, initialData, children }: Props) {
         status: initialData ? 200 : null,
       },
       refreshInterval: (snapshot) => (snapshot?.data?.run.status === "running" ? 5000 : 0),
-      revalidateOnFocus: true,
+      revalidateOnFocus: false,
       revalidateOnMount: true,
+      // Keep previous data during revalidation to prevent full-screen flash
+      keepPreviousData: true,
       // Use compare function to prevent re-renders when data hasn't meaningfully changed
       compare: (a, b) => {
         if (!a?.data && !b?.data) return true;
