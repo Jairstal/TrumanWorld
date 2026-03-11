@@ -1,10 +1,11 @@
 """Simple scheduler for automatic tick advancement."""
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Awaitable, Callable
 
 from app.infra.logging import debug, error, info, warning
+from app.infra.settings import get_settings
 
 
 @dataclass
@@ -13,6 +14,8 @@ class ScheduledRun:
     interval_seconds: float
     callback: Callable[[str], Awaitable[None]]
     task: asyncio.Task | None = None
+    consecutive_errors: int = 0
+    on_max_errors: Callable[[str], Awaitable[None]] | None = field(default=None, repr=False)
 
 
 class SimulationScheduler:
@@ -27,6 +30,7 @@ class SimulationScheduler:
         run_id: str,
         interval_seconds: float,
         callback: Callable[[str], Awaitable[None]],
+        on_max_errors: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         """Start automatic tick advancement for a run."""
         async with self._lock:
@@ -40,9 +44,10 @@ class SimulationScheduler:
                 run_id=run_id,
                 interval_seconds=interval_seconds,
                 callback=callback,
+                on_max_errors=on_max_errors,
             )
             scheduled.task = asyncio.create_task(
-                self._tick_loop(run_id, interval_seconds, callback),
+                self._tick_loop(run_id, interval_seconds, callback, on_max_errors),
                 name=f"tick-loop-{run_id}",
             )
             self._scheduled[run_id] = scheduled
@@ -90,8 +95,11 @@ class SimulationScheduler:
         run_id: str,
         interval_seconds: float,
         callback: Callable[[str], Awaitable[None]],
+        on_max_errors: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         """Main loop for automatic tick advancement."""
+        max_errors = get_settings().scheduler_max_consecutive_errors
+        consecutive_errors = 0
         tick_count = 0
         while True:
             try:
@@ -104,6 +112,7 @@ class SimulationScheduler:
                 task = asyncio.create_task(callback(run_id))
                 try:
                     await task
+                    consecutive_errors = 0  # 成功清零错误计数
                     debug(f"Tick #{tick_count} completed successfully for run {run_id}")
                 except asyncio.CancelledError:
                     # Task was cancelled, clean up
@@ -119,9 +128,26 @@ class SimulationScheduler:
                         debug(f"Tick callback cancel scope error for run {run_id}: {e}")
                     else:
                         error(f"RuntimeError in tick callback for run {run_id}: {e}")
+                        consecutive_errors += 1
                 except Exception as e:
                     error(f"Error in tick callback for run {run_id}: {e}")
+                    consecutive_errors += 1
                     # Continue running despite callback errors
+
+                # 连续失败超过阈値时自动暂停
+                if max_errors > 0 and consecutive_errors >= max_errors:
+                    warning(
+                        f"Run {run_id} has failed {consecutive_errors} consecutive ticks "
+                        f"(max={max_errors}), auto-pausing"
+                    )
+                    # 移除调度登记，避免锁死锁
+                    self._scheduled.pop(run_id, None)
+                    if on_max_errors is not None:
+                        try:
+                            await on_max_errors(run_id)
+                        except Exception as cb_err:
+                            error(f"on_max_errors callback failed for run {run_id}: {cb_err}")
+                    break
 
             except asyncio.CancelledError:
                 info(f"Tick loop cancelled for run {run_id} after {tick_count} ticks")

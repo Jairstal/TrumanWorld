@@ -15,7 +15,7 @@ from app.scenario.factory import create_scenario
 from app.scenario.types import get_agent_config_id
 from app.sim.service import SimulationService
 from app.store.models import SimulationRun
-from app.store.repositories import AgentRepository
+from app.store.repositories import AgentRepository, RunRepository
 
 
 logger = get_logger(__name__)
@@ -25,6 +25,7 @@ logger = get_logger(__name__)
 class RunExecutionPlan:
     interval_seconds: float
     tick_callback: Callable[[str], Awaitable[None]]
+    on_max_errors: Callable[[str], Awaitable[None]] | None = None
 
 
 class RunExecutionBootstrapper:
@@ -42,9 +43,22 @@ class RunExecutionBootstrapper:
             service = SimulationService.create_for_scheduler(agent_runtime, scenario=scenario)
             await service.run_tick_isolated(run_id, async_engine)
 
+        async def on_max_errors(run_id: str) -> None:
+            """连续失败超过阈值时自动暂停 run，更新数据库状态。"""
+            logger.warning(
+                f"Auto-pausing run {run_id} due to consecutive tick failures "
+                f"(max={settings.scheduler_max_consecutive_errors})"
+            )
+            async with AsyncSession(async_engine, expire_on_commit=False) as session:
+                run = await session.get(SimulationRun, run_id)
+                if run is not None:
+                    await RunRepository(session).update_status(run, "paused")
+                    logger.info(f"Run {run_id} auto-paused after consecutive errors")
+
         return RunExecutionPlan(
             interval_seconds=settings.scheduler_interval_seconds,
             tick_callback=tick_callback,
+            on_max_errors=on_max_errors,
         )
 
     async def _warm_connection_pool(self, session: AsyncSession, run_id: str, pool) -> None:

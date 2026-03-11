@@ -25,6 +25,7 @@ async def ensure_run_started(session: AsyncSession, run: SimulationRun) -> Simul
         run.id,
         interval_seconds=plan.interval_seconds,
         callback=plan.tick_callback,
+        on_max_errors=plan.on_max_errors,
     )
 
     if run.status != "running":
