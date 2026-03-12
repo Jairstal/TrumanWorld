@@ -938,6 +938,88 @@ async def test_run_tick_isolated_with_separate_sessions(db_session):
     shutil.rmtree(tmp_path)
 
 
+@pytest.mark.asyncio
+async def test_run_tick_isolated_skips_sleep_hours_and_persists_advanced_tick(db_session):
+    from pathlib import Path
+    import shutil
+    import tempfile
+
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+    from app.agent.providers import HeuristicDecisionProvider
+    from app.agent.registry import AgentRegistry
+    from app.agent.runtime import AgentRuntime
+    from app.sim.context import get_run_world_time
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+
+    from app.store.models import Base
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    run_id = "run-isolated-sleep-skip"
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        run = SimulationRun(
+            id=run_id,
+            name="isolated-sleep-skip",
+            status="running",
+            current_tick=203,
+            tick_minutes=5,
+        )
+        home = Location(
+            id="loc-home-sleep-skip",
+            run_id=run_id,
+            name="Home",
+            location_type="home",
+            capacity=2,
+        )
+        alice = Agent(
+            id="alice-sleep-skip",
+            run_id=run_id,
+            name="Alice",
+            occupation="resident",
+            home_location_id="loc-home-sleep-skip",
+            current_location_id="loc-home-sleep-skip",
+            personality={},
+            profile={},
+            status={},
+            current_plan={},
+        )
+        session.add_all([run, home, alice])
+        await session.commit()
+
+    tmp_path = Path(tempfile.mkdtemp())
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "agent.yml").write_text("id: test\nname: Test\noccupation: test\nhome: home\n")
+    (agent_dir / "prompt.md").write_text("# Test")
+
+    registry = AgentRegistry(tmp_path)
+    runtime = AgentRuntime(registry=registry, decision_provider=HeuristicDecisionProvider())
+    service = SimulationService.create_for_scheduler(runtime)
+
+    result = await service.run_tick_isolated(
+        run_id,
+        engine,
+        [ActionIntent(agent_id="alice-sleep-skip", action_type="rest")],
+    )
+
+    assert result.tick_delta == 85
+    assert result.tick_no == 288
+    assert result.world_time == "2026-03-03T06:00:00+00:00"
+
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        run_repo = RunRepository(session)
+        updated_run = await run_repo.get(run_id)
+        assert updated_run is not None
+        assert updated_run.current_tick == 288
+        assert get_run_world_time(updated_run).isoformat() == "2026-03-03T06:00:00+00:00"
+
+    await engine.dispose()
+    shutil.rmtree(tmp_path)
+
+
 # ============================================================
 # LLM Token Tracking Tests
 # ============================================================

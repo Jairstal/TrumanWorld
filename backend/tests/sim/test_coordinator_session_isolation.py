@@ -456,7 +456,13 @@ async def test_run_method_no_longer_triggers_planner():
         current_time=datetime(2026, 3, 2, 6, 0),  # 06:00 清晨
         tick_minutes=5,
     )
-    result = TickResult(tick_no=1, world_time="2026-03-02T06:00:00", accepted=[], rejected=[])
+    result = TickResult(
+        tick_no=1,
+        world_time="2026-03-02T06:00:00",
+        tick_delta=1,
+        accepted=[],
+        rejected=[],
+    )
     coordinator = DayBoundaryCoordinator()
 
     with patch(

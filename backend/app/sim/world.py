@@ -25,6 +25,12 @@ class AgentState:
     workplace_id: str | None = None
 
 
+@dataclass(frozen=True)
+class TickAdvance:
+    current_time: datetime
+    tick_delta: int
+
+
 class WorldState:
     """Authoritative in-memory world state facade."""
 
@@ -93,14 +99,19 @@ class WorldState:
             "time_period": self._time_period(),
         }
 
-    def advance_tick(self) -> datetime:
-        self.current_tick += 1
-        self.current_time = self.current_time + timedelta(minutes=self.tick_minutes)
-        # 跳夜：若进入睡眠时段，直接跳到次日 sleep_end_hour（默认 06:00）
-        if self.current_time.hour >= self.sleep_start_hour:
-            next_day = (self.current_time + timedelta(days=1)).date()
-            self.current_time = datetime.combine(next_day, time(self.sleep_end_hour, 0))
-        return self.current_time
+    def advance_tick(self) -> TickAdvance:
+        next_time = self.current_time + timedelta(minutes=self.tick_minutes)
+        wake_time = self._resolve_sleep_jump(next_time)
+        if wake_time is not None:
+            advanced_minutes = int((wake_time - self.current_time).total_seconds() // 60)
+            tick_delta = advanced_minutes // self.tick_minutes
+            self.current_time = wake_time
+        else:
+            tick_delta = 1
+            self.current_time = next_time
+
+        self.current_tick += tick_delta
+        return TickAdvance(current_time=self.current_time, tick_delta=tick_delta)
 
     def get_agent(self, agent_id: str) -> AgentState | None:
         return self.agents.get(agent_id)
@@ -147,3 +158,25 @@ class WorldState:
         if hour < 21:
             return "evening"
         return "night"
+
+    def _resolve_sleep_jump(self, candidate_time: datetime) -> datetime | None:
+        if not self._is_sleep_time(candidate_time):
+            return None
+
+        if candidate_time.hour >= self.sleep_start_hour:
+            wake_date = (candidate_time + timedelta(days=1)).date()
+        else:
+            wake_date = candidate_time.date()
+
+        wake_time = datetime.combine(
+            wake_date,
+            time(self.sleep_end_hour, 0),
+            tzinfo=candidate_time.tzinfo,
+        )
+        return wake_time
+
+    def _is_sleep_time(self, dt: datetime) -> bool:
+        hour = dt.hour
+        if self.sleep_start_hour <= self.sleep_end_hour:
+            return self.sleep_start_hour <= hour < self.sleep_end_hour
+        return hour >= self.sleep_start_hour or hour < self.sleep_end_hour

@@ -11,6 +11,7 @@ from app.sim.world import WorldState
 class TickResult:
     tick_no: int
     world_time: str
+    tick_delta: int
     accepted: list[ActionResult]
     rejected: list[ActionResult]
 
@@ -40,11 +41,13 @@ class SimulationRunner:
             else:
                 rejected.append(result)
 
-        world_time = self.world.advance_tick().isoformat()
-        self.tick_no += 1
+        advanced = self.world.advance_tick()
+        world_time = advanced.current_time.isoformat()
+        self.tick_no += advanced.tick_delta
         return TickResult(
             tick_no=self.tick_no,
             world_time=world_time,
+            tick_delta=advanced.tick_delta,
             accepted=accepted,
             rejected=rejected,
         )

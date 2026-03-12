@@ -108,7 +108,28 @@ def test_simulation_runner_advances_tick_and_collects_results():
     assert result.tick_no == 1
     assert len(result.accepted) == 2
     assert len(result.rejected) == 0
+    assert result.tick_delta == 1
     assert world.current_time.isoformat() == "2026-03-07T08:05:00"
+
+
+def test_simulation_runner_skips_sleep_hours_in_single_tick():
+    world = WorldState(
+        current_time=datetime(2026, 3, 7, 22, 55, 0),
+        current_tick=203,
+        tick_minutes=5,
+        locations={"home": LocationState(id="home", name="Home", capacity=2, occupants={"alice"})},
+        agents={"alice": AgentState(id="alice", name="Alice", location_id="home", status={})},
+    )
+    runner = SimulationRunner(world)
+    runner.tick_no = 203
+
+    result = runner.tick([ActionIntent(agent_id="alice", action_type="rest")])
+
+    assert result.tick_delta == 85
+    assert result.tick_no == 288
+    assert result.world_time == "2026-03-08T06:00:00"
+    assert world.current_tick == 288
+    assert world.current_time.isoformat() == "2026-03-08T06:00:00"
 
 
 def test_world_time_context_exposes_calendar_fields():

@@ -104,7 +104,7 @@ class IsolatedTickRunner:
                 run_id,
                 result,
                 loaded.world,
-                loaded.run.current_tick + 1,
+                result.tick_no,
             )
             write_scenario = runtime_scenario.with_session(write_session)
             await write_scenario.update_state_from_events(run_id, persisted_events)
