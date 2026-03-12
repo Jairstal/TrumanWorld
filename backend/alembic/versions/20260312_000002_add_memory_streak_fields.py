@@ -6,7 +6,6 @@ Create Date: 2026-03-12 02:00:00
 """
 
 from alembic import op
-import sqlalchemy as sa
 
 
 revision = "20260312_000002"
@@ -16,13 +15,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "memories",
-        sa.Column("streak_count", sa.Integer(), nullable=False, server_default="1"),
-    )
-    op.add_column(
-        "memories",
-        sa.Column("last_tick_no", sa.Integer(), nullable=True),
+    op.execute(
+        """
+        ALTER TABLE memories
+        ADD COLUMN IF NOT EXISTS streak_count INTEGER NOT NULL DEFAULT 1,
+        ADD COLUMN IF NOT EXISTS last_tick_no INTEGER NULL
+        """
     )
 
 

@@ -7,8 +7,6 @@ Create Date: 2026-03-12
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
-
 from alembic import op
 
 revision: str = "20260312_000001"
@@ -18,25 +16,15 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "memories",
-        sa.Column("event_importance", sa.Float(), nullable=False, server_default="0"),
-    )
-    op.add_column(
-        "memories",
-        sa.Column("self_relevance", sa.Float(), nullable=False, server_default="0"),
-    )
-    op.add_column(
-        "memories",
-        sa.Column("belief_confidence", sa.Float(), nullable=False, server_default="1"),
-    )
-    op.add_column(
-        "memories",
-        sa.Column("retrieval_count", sa.Integer(), nullable=False, server_default="0"),
-    )
-    op.add_column(
-        "memories",
-        sa.Column("last_accessed_at", sa.DateTime(timezone=True), nullable=True),
+    op.execute(
+        """
+        ALTER TABLE memories
+        ADD COLUMN IF NOT EXISTS event_importance DOUBLE PRECISION NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS self_relevance DOUBLE PRECISION NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS belief_confidence DOUBLE PRECISION NOT NULL DEFAULT 1,
+        ADD COLUMN IF NOT EXISTS retrieval_count INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS last_accessed_at TIMESTAMP WITH TIME ZONE NULL
+        """
     )
 
 

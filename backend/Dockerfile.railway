@@ -31,6 +31,6 @@ COPY --chown=appuser:appuser agents /app/agents
 
 EXPOSE 8000
 
-# 注意：数据库迁移在 railway.toml preDeployCommand 中执行
-# 这里只启动应用，避免每次容器重启都执行迁移
-CMD ["sh", "-c", "uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Railway service currently deploys directly from this Dockerfile, so startup
+# must include migrations before the API boots.
+CMD ["sh", "scripts/start-railway.sh"]
