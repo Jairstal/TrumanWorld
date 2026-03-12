@@ -50,6 +50,15 @@ def build_name_maps(agents, locations) -> tuple[dict[str, str], dict[str, str]]:
     )
 
 
+def build_occupants_by_location(agents) -> dict[str, list]:
+    occupants_by_location: dict[str, list] = {}
+    for agent in agents:
+        if not agent.current_location_id:
+            continue
+        occupants_by_location.setdefault(agent.current_location_id, []).append(agent)
+    return occupants_by_location
+
+
 def enrich_event_payload(
     event, agent_name_map: dict[str, str], location_name_map: dict[str, str]
 ) -> dict:
@@ -419,26 +428,10 @@ async def get_world_pulse(
     logger.debug(f"Getting world pulse for run {run_id}")
     run = await get_required_run(session, run_id)
 
-    agent_repo = AgentRepository(session)
-    location_repo = LocationRepository(session)
     event_repo = EventRepository(session)
-    director_memory_repo = DirectorMemoryRepository(session)
     llm_call_repo = LlmCallRepository(session)
 
-    (
-        agents,
-        locations,
-        events,
-        director_total,
-        director_executed,
-        all_time_event_counts,
-        token_totals,
-    ) = await asyncio.gather(
-        agent_repo.list_names_for_run(str(run_id)),
-        location_repo.list_names_for_run(str(run_id)),
-        event_repo.list_api_rows_for_run(str(run_id), limit=WORLD_RECENT_EVENT_LIMIT),
-        director_memory_repo.count_for_run(str(run_id)),
-        director_memory_repo.count_executed_for_run(str(run_id)),
+    all_time_event_counts, token_totals = await asyncio.gather(
         event_repo.count_events_by_type(
             str(run_id),
             tick_from=None,
@@ -449,23 +442,10 @@ async def get_world_pulse(
     )
 
     world_time = get_run_world_time(run)
-    agent_name_map, location_name_map = build_name_maps(agents, locations)
 
     return WorldPulseResponse(
         run=build_run_snapshot(run),
         world_clock=build_world_clock(world_time),
-        recent_events=[
-            build_world_event_response(event, agent_name_map, location_name_map)
-            for event in events
-            if event.visibility == "public"
-        ],
-        director_stats=WorldDirectorStatsResponse(
-            total=director_total,
-            executed=director_executed,
-            execution_rate=round((director_executed / director_total) * 100)
-            if director_total > 0
-            else 0,
-        ),
         daily_stats=WorldDailyStatsResponse(
             talk_count=all_time_event_counts.get("talk", 0),
             move_count=all_time_event_counts.get("move", 0),
@@ -536,6 +516,7 @@ async def get_world_snapshot(
         )
         for agent in agents
     }
+    occupants_by_location = build_occupants_by_location(agents)
     locations_payload = [
         WorldLocationResponse(
             id=location.id,
@@ -546,8 +527,7 @@ async def get_world_snapshot(
             capacity=location.capacity,
             occupants=[
                 agent_summaries[agent.id]
-                for agent in agents
-                if agent.current_location_id == location.id
+                for agent in occupants_by_location.get(location.id, [])
             ],
         )
         for location in locations

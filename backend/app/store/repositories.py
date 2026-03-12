@@ -667,8 +667,7 @@ class RelationshipRepository:
         relation.relation_type = relation_type
         relation.last_interaction_at = now
 
-        await self.session.commit()
-        await self.session.refresh(relation)
+        await self.session.flush()
         return relation
 
 

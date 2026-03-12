@@ -160,8 +160,6 @@ export type WorldSnapshot = {
 export type WorldPulse = {
   run: RunSummary;
   world_clock?: WorldClock;
-  recent_events: WorldEvent[];
-  director_stats?: WorldSnapshot["director_stats"];
   daily_stats?: WorldSnapshot["daily_stats"];
 };
 

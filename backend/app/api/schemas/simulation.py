@@ -446,10 +446,6 @@ class WorldSnapshotResponse(BaseModel):
 class WorldPulseResponse(BaseModel):
     run: WorldSnapshotRunResponse = Field(..., description="运行信息")
     world_clock: WorldClockResponse = Field(..., description="世界时钟")
-    recent_events: list[WorldEventResponse] = Field(default_factory=list, description="最近事件")
-    director_stats: WorldDirectorStatsResponse = Field(
-        default_factory=WorldDirectorStatsResponse, description="导演统计"
-    )
     daily_stats: WorldDailyStatsResponse = Field(
         default_factory=WorldDailyStatsResponse, description="每日统计"
     )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import asyncio
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from app.scenario.types import get_world_role
@@ -41,53 +41,63 @@ async def build_agent_memory_cache(
     - long_term: 长期记忆
     - about_others: 关于其他 agent 的记忆
     """
-    from collections import defaultdict
+    from sqlalchemy import func, select
 
-    from sqlalchemy import select
-    from app.store.models import Memory, Agent
+    from app.store.models import Memory
 
-    # 加载所有 agent 的名称映射
-    agents_result = await session.execute(
-        select(Agent.id, Agent.name).where(Agent.run_id == run_id)
-    )
-    agent_names = {row.id: row.name for row in agents_result}
+    agent_ids = [agent.id for agent in agents]
+    if not agent_ids:
+        return {}
 
-    async def _load_one_agent_memories(agent: "Agent") -> tuple[str, dict[str, Any]]:
-        agent_id = agent.id
-        result = await session.execute(
-            select(Memory)
-            .where(Memory.run_id == run_id, Memory.agent_id == agent_id)
-            .order_by(Memory.created_at.desc())
-            .limit(ALL_MEMORY_LIMIT)
+    agent_names = {agent.id: agent.name for agent in agents}
+    ranked_memories = (
+        select(
+            Memory.id.label("memory_id"),
+            func.row_number()
+            .over(partition_by=Memory.agent_id, order_by=Memory.created_at.desc())
+            .label("row_num"),
         )
-        memories = result.scalars().all()
+        .where(Memory.run_id == run_id, Memory.agent_id.in_(agent_ids))
+        .subquery()
+    )
+    result = await session.execute(
+        select(Memory)
+        .join(ranked_memories, Memory.id == ranked_memories.c.memory_id)
+        .where(ranked_memories.c.row_num <= ALL_MEMORY_LIMIT)
+        .order_by(Memory.agent_id.asc(), Memory.created_at.desc())
+    )
+    memories_by_agent: dict[str, list[Memory]] = {agent_id: [] for agent_id in agent_ids}
+    for memory in result.scalars():
+        memories_by_agent.setdefault(memory.agent_id, []).append(memory)
 
-        short_term: list[dict] = []
-        medium_term: list[dict] = []
-        long_term: list[dict] = []
-        all_memories: list[dict] = []
-        about_others: dict[str, list[dict]] = defaultdict(list)
+    def _serialize_memory(mem: Memory) -> dict[str, Any]:
+        content = mem.content or ""
+        if len(content) > MEMORY_CONTENT_PREVIEW_LIMIT:
+            content = f"{content[:MEMORY_CONTENT_PREVIEW_LIMIT]}..."
+        return {
+            "id": mem.id,
+            "content": content,
+            "summary": mem.summary,
+            "tick_no": mem.tick_no,
+            "memory_type": mem.memory_type,
+            "memory_category": mem.memory_category,
+            "importance": mem.importance,
+            "event_importance": mem.event_importance,
+            "self_relevance": mem.self_relevance,
+            "related_agent_id": mem.related_agent_id,
+            "related_agent_name": agent_names.get(mem.related_agent_id),
+            "location_id": mem.location_id,
+        }
 
-        def _serialize_memory(mem: Memory) -> dict[str, Any]:
-            content = mem.content or ""
-            if len(content) > MEMORY_CONTENT_PREVIEW_LIMIT:
-                content = f"{content[:MEMORY_CONTENT_PREVIEW_LIMIT]}..."
-            return {
-                "id": mem.id,
-                "content": content,
-                "summary": mem.summary,
-                "tick_no": mem.tick_no,
-                "memory_type": mem.memory_type,
-                "memory_category": mem.memory_category,
-                "importance": mem.importance,
-                "event_importance": mem.event_importance,
-                "self_relevance": mem.self_relevance,
-                "related_agent_id": mem.related_agent_id,
-                "related_agent_name": agent_names.get(mem.related_agent_id),
-                "location_id": mem.location_id,
-            }
+    cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for agent_id in agent_ids:
+        short_term: list[dict[str, Any]] = []
+        medium_term: list[dict[str, Any]] = []
+        long_term: list[dict[str, Any]] = []
+        all_memories: list[dict[str, Any]] = []
+        about_others: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
-        for mem in memories:
+        for mem in memories_by_agent.get(agent_id, []):
             mem_dict = _serialize_memory(mem)
             all_memories.append(mem_dict)
             if mem.memory_category == "short_term":
@@ -109,7 +119,7 @@ async def build_agent_memory_cache(
                     continue
                 about_others[mem.related_agent_id].append(mem_dict)
 
-        return agent_id, {
+        cache[agent_id] = {
             "short_term": short_term,
             "medium_term": medium_term,
             "long_term": long_term,
@@ -117,8 +127,7 @@ async def build_agent_memory_cache(
             "all": all_memories,
         }
 
-    results = await asyncio.gather(*[_load_one_agent_memories(a) for a in agents])
-    return dict(results)
+    return cache
 
 
 async def build_agent_recent_events(
@@ -129,30 +138,86 @@ async def build_agent_recent_events(
     agent_states: dict[str, "AgentState"],
     location_states: dict[str, "LocationState"],
 ) -> dict[str, list[dict[str, Any]]]:
-    agent_repo = ContextBuilder(session).agent_repo
     context_builder = ContextBuilder(session)
+    from collections import defaultdict
 
-    async def _load_one_agent_events(
-        agent: "Agent",
-    ) -> tuple[str, list[dict[str, Any]]]:
+    from sqlalchemy import and_, case, func, literal, or_, select, union_all
+
+    from app.store.models import Event
+
+    if not agents:
+        return {}
+
+    agent_rows = []
+    for agent in agents:
         include_director_system_events = get_world_role(agent.profile) == "cast"
         current_location_id = (
             agent_states[agent.id].location_id if agent.id in agent_states else None
         )
-        recent_events = await agent_repo.list_recent_events(
-            run_id,
-            agent.id,
-            limit=5,
-            include_director_system_events=include_director_system_events,
-            current_location_id=current_location_id,
+        agent_rows.append(
+            select(
+                literal(agent.id).label("agent_id"),
+                literal(current_location_id).label("current_location_id"),
+                literal(include_director_system_events).label("include_director_system_events"),
+            )
         )
-        return agent.id, [
-            context_builder.format_event_for_context(evt, agent_states, location_states)
-            for evt in recent_events
-        ]
 
-    results = await asyncio.gather(*[_load_one_agent_events(a) for a in agents])
-    return dict(results)
+    agent_inputs = union_all(*agent_rows).cte("agent_inputs")
+    event_priority = case(
+        (Event.event_type.in_(["talk", "move"]), 0),
+        (Event.event_type.in_(["work", "rest"]), 2),
+        else_=1,
+    )
+    ranked_events = (
+        select(
+            agent_inputs.c.agent_id.label("for_agent_id"),
+            Event.id.label("event_id"),
+            func.row_number()
+            .over(
+                partition_by=agent_inputs.c.agent_id,
+                order_by=(event_priority, Event.tick_no.desc(), Event.created_at.desc()),
+            )
+            .label("row_num"),
+        )
+        .select_from(Event)
+        .join(
+            agent_inputs,
+            and_(
+                Event.run_id == run_id,
+                or_(
+                    Event.actor_agent_id == agent_inputs.c.agent_id,
+                    Event.target_agent_id == agent_inputs.c.agent_id,
+                    and_(
+                        agent_inputs.c.current_location_id.is_not(None),
+                        Event.location_id == agent_inputs.c.current_location_id,
+                        Event.actor_agent_id != agent_inputs.c.agent_id,
+                        Event.target_agent_id != agent_inputs.c.agent_id,
+                    ),
+                    and_(
+                        agent_inputs.c.include_director_system_events.is_(True),
+                        Event.visibility == "system",
+                        Event.event_type.startswith("director_"),
+                    ),
+                ),
+            ),
+        )
+        .subquery()
+    )
+
+    result = await session.execute(
+        select(ranked_events.c.for_agent_id, Event)
+        .join(Event, Event.id == ranked_events.c.event_id)
+        .where(ranked_events.c.row_num <= 5)
+        .order_by(ranked_events.c.for_agent_id.asc(), ranked_events.c.row_num.asc())
+    )
+
+    grouped_events: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for for_agent_id, event in result.all():
+        grouped_events[for_agent_id].append(
+            context_builder.format_event_for_context(event, agent_states, location_states)
+        )
+
+    return {agent.id: grouped_events.get(agent.id, []) for agent in agents}
 
 
 async def build_agent_snapshots(

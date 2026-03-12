@@ -7,9 +7,11 @@ after each simulation tick.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.sim.event_utils import build_event
@@ -24,7 +26,7 @@ from app.store.repositories import (
     RelationshipRepository,
     RunRepository,
 )
-from app.store.models import Event, Memory
+from app.store.models import Event, Memory, Relationship
 
 if TYPE_CHECKING:
     from app.store.models import Agent
@@ -133,28 +135,29 @@ class PersistenceManager:
         location_name_map = {loc.id: loc.name for loc in locations_list}
         memories: list[Memory] = []
         updated_routine_memory = False
-        for event in events:
-            if event.event_type.endswith("_rejected") or event.actor_agent_id is None:
-                continue
-
-            for agent_id, content, summary, related_agent_id in self._build_memory_records(
-                event, agent_name_map, location_name_map
-            ):
-                routine_memory = await self._find_routine_memory_to_extend(
-                    run_id=run_id,
-                    agent_id=agent_id,
-                    event=event,
-                    summary=summary,
-                )
+        memory_inputs = self._prepare_memory_inputs(
+            events, agent_name_map=agent_name_map, location_name_map=location_name_map
+        )
+        routine_memory_map = await self._preload_routine_memories(
+            session=self.session,
+            run_id=run_id,
+            items=memory_inputs,
+        )
+        relationship_strength_map = await self._preload_relationship_strengths(
+            session=self.session,
+            run_id=run_id,
+            items=memory_inputs,
+        )
+        for event, records in memory_inputs:
+            for agent_id, content, summary, related_agent_id in records:
+                routine_memory = routine_memory_map.get((agent_id, summary, event.location_id))
                 if routine_memory is not None:
                     self._extend_routine_memory(routine_memory, event)
                     updated_routine_memory = True
                     continue
                 perspective = self._determine_perspective(event, agent_id)
-                relationship_strength = await self._relationship_strength(
-                    run_id=run_id,
-                    agent_id=agent_id,
-                    related_agent_id=related_agent_id,
+                relationship_strength = relationship_strength_map.get(
+                    (agent_id, related_agent_id), 0.0
                 )
                 memory_importance = calculate_memory_importance(
                     event_importance=event.importance,
@@ -208,36 +211,34 @@ class PersistenceManager:
             agent_repo.list_for_run(run_id),
             location_repo.list_for_run(run_id),
         )
-        rel_repo = RelationshipRepository(session)
         agent_map = {a.id: a for a in agents}
         agent_name_map = {a.id: a.name for a in agents}
         location_name_map = {loc.id: loc.name for loc in locations}
         memories: list[Memory] = []
         updated_routine_memory = False
-        for event in events:
-            if event.event_type.endswith("_rejected") or event.actor_agent_id is None:
-                continue
-
-            for agent_id, content, summary, related_agent_id in self._build_memory_records(
-                event, agent_name_map, location_name_map
-            ):
-                routine_memory = await self._find_routine_memory_to_extend_with_session(
-                    session=session,
-                    run_id=run_id,
-                    agent_id=agent_id,
-                    event=event,
-                    summary=summary,
-                )
+        memory_inputs = self._prepare_memory_inputs(
+            events, agent_name_map=agent_name_map, location_name_map=location_name_map
+        )
+        routine_memory_map = await self._preload_routine_memories(
+            session=session,
+            run_id=run_id,
+            items=memory_inputs,
+        )
+        relationship_strength_map = await self._preload_relationship_strengths(
+            session=session,
+            run_id=run_id,
+            items=memory_inputs,
+        )
+        for event, records in memory_inputs:
+            for agent_id, content, summary, related_agent_id in records:
+                routine_memory = routine_memory_map.get((agent_id, summary, event.location_id))
                 if routine_memory is not None:
                     self._extend_routine_memory(routine_memory, event)
                     updated_routine_memory = True
                     continue
                 perspective = self._determine_perspective(event, agent_id)
-                relationship_strength = await self._relationship_strength_with_repo(
-                    rel_repo=rel_repo,
-                    run_id=run_id,
-                    agent_id=agent_id,
-                    related_agent_id=related_agent_id,
+                relationship_strength = relationship_strength_map.get(
+                    (agent_id, related_agent_id), 0.0
                 )
                 memory_importance = calculate_memory_importance(
                     event_importance=event.importance,
@@ -281,6 +282,7 @@ class PersistenceManager:
 
     async def persist_tick_relationships(self, run_id: str, events: list[Event]) -> None:
         """Persist relationships from talk events."""
+        updated = False
         for event in events:
             if event.event_type != "talk":
                 continue
@@ -295,6 +297,7 @@ class PersistenceManager:
                 trust_delta=0.05,
                 affinity_delta=0.05,
             )
+            updated = True
             await self.relationship_repo.upsert_interaction(
                 run_id=run_id,
                 agent_id=event.target_agent_id,
@@ -303,6 +306,9 @@ class PersistenceManager:
                 trust_delta=0.05,
                 affinity_delta=0.05,
             )
+            updated = True
+        if updated:
+            await self.session.commit()
 
     async def persist_tick_relationships_with_session(
         self,
@@ -312,6 +318,7 @@ class PersistenceManager:
     ) -> None:
         """Persist relationships using a provided session."""
         rel_repo = RelationshipRepository(session)
+        updated = False
         for event in events:
             if event.event_type != "talk":
                 continue
@@ -326,6 +333,7 @@ class PersistenceManager:
                 trust_delta=0.05,
                 affinity_delta=0.05,
             )
+            updated = True
             await rel_repo.upsert_interaction(
                 run_id=run_id,
                 agent_id=event.target_agent_id,
@@ -334,6 +342,9 @@ class PersistenceManager:
                 trust_delta=0.05,
                 affinity_delta=0.05,
             )
+            updated = True
+        if updated:
+            await session.commit()
 
     async def persist_agent_locations(self, run_id: str, world: WorldState) -> None:
         """Update agent locations after tick."""
@@ -424,6 +435,108 @@ class PersistenceManager:
                 event.target_agent_id,
             )
         ]
+
+    def _prepare_memory_inputs(
+        self,
+        events: Sequence[Event],
+        *,
+        agent_name_map: dict[str, str],
+        location_name_map: dict[str, str],
+    ) -> list[tuple[Event, list[tuple[str, str, str, str | None]]]]:
+        prepared: list[tuple[Event, list[tuple[str, str, str, str | None]]]] = []
+        for event in events:
+            if event.event_type.endswith("_rejected") or event.actor_agent_id is None:
+                continue
+            records = self._build_memory_records(event, agent_name_map, location_name_map)
+            if records:
+                prepared.append((event, records))
+        return prepared
+
+    async def _preload_routine_memories(
+        self,
+        *,
+        session: AsyncSession,
+        run_id: str,
+        items: Sequence[tuple[Event, list[tuple[str, str, str, str | None]]]],
+    ) -> dict[tuple[str, str, str | None], Memory]:
+        routine_requests = [
+            (event, agent_id, summary)
+            for event, records in items
+            if event.event_type in ROUTINE_MEMORY_EVENT_TYPES
+            for agent_id, _content, summary, _related_agent_id in records
+        ]
+        if not routine_requests:
+            return {}
+
+        agent_ids = {agent_id for _event, agent_id, _summary in routine_requests}
+        summaries = {summary for _event, _agent_id, summary in routine_requests}
+        min_tick = min(
+            max(0, event.tick_no - ROUTINE_MEMORY_LOOKBACK_TICKS)
+            for event, _agent_id, _summary in routine_requests
+        )
+        location_ids = {event.location_id for event, _agent_id, _summary in routine_requests}
+        location_filters = []
+        non_null_location_ids = [location_id for location_id in location_ids if location_id is not None]
+        if non_null_location_ids:
+            location_filters.append(Memory.location_id.in_(non_null_location_ids))
+        if None in location_ids:
+            location_filters.append(Memory.location_id.is_(None))
+
+        stmt = (
+            select(Memory)
+            .where(
+                Memory.run_id == run_id,
+                Memory.agent_id.in_(agent_ids),
+                Memory.summary.in_(summaries),
+                Memory.metadata_json["event_type"].as_string().in_(["work", "rest"]),
+                Memory.tick_no >= min_tick,
+                or_(*location_filters),
+            )
+            .order_by(Memory.tick_no.desc(), Memory.created_at.desc())
+        )
+        result = await session.execute(stmt)
+        routine_map: dict[tuple[str, str, str | None], Memory] = {}
+        for memory in result.scalars():
+            key = (memory.agent_id, memory.summary or "", memory.location_id)
+            routine_map.setdefault(key, memory)
+        return routine_map
+
+    async def _preload_relationship_strengths(
+        self,
+        *,
+        session: AsyncSession,
+        run_id: str,
+        items: Sequence[tuple[Event, list[tuple[str, str, str, str | None]]]],
+    ) -> dict[tuple[str, str | None], float]:
+        pair_requests = {
+            (agent_id, related_agent_id)
+            for _event, records in items
+            for agent_id, _content, _summary, related_agent_id in records
+            if related_agent_id
+        }
+        if not pair_requests:
+            return {}
+
+        pair_conditions = [
+            and_(Relationship.agent_id == agent_id, Relationship.other_agent_id == other_agent_id)
+            for agent_id, other_agent_id in pair_requests
+        ]
+        stmt = select(Relationship).where(Relationship.run_id == run_id, or_(*pair_conditions))
+        result = await session.execute(stmt)
+        strength_map: dict[tuple[str, str | None], float] = {
+            (agent_id, related_agent_id): 0.0
+            for agent_id, related_agent_id in pair_requests
+        }
+        for relation in result.scalars():
+            components = [
+                relation.familiarity,
+                max(relation.trust, 0.0),
+                max(relation.affinity, 0.0),
+            ]
+            strength_map[(relation.agent_id, relation.other_agent_id)] = sum(components) / len(
+                components
+            )
+        return strength_map
 
     @staticmethod
     def _determine_perspective(event: Event, agent_id: str) -> str:
