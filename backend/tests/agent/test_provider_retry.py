@@ -137,6 +137,44 @@ async def test_retry_on_json_parse_failure(monkeypatch):
     assert call_count == 2
 
 
+@pytest.mark.asyncio
+async def test_provider_accepts_valid_json_with_trailing_text(monkeypatch):
+    """合法 JSON 后混入尾随文本时，仍应提取首个有效 JSON 决策。"""
+    provider = _make_provider(monkeypatch)
+    invocation = _make_invocation()
+
+    async def fake_query(*args, **kwargs):
+        yield _make_result_message(
+            '{"action_type":"talk","target_agent_id":"bob","message":"hi"} extra trailing text'
+        )
+
+    monkeypatch.setattr(provider_module, "query", fake_query)
+
+    result = await provider.decide(invocation)
+
+    assert result.action_type == "talk"
+    assert result.target_agent_id == "bob"
+    assert result.message == "hi"
+
+
+@pytest.mark.asyncio
+async def test_provider_extracts_first_valid_json_when_tail_contains_braces(monkeypatch):
+    """尾随内容再次出现花括号时，仍应提取首个合法 JSON 对象。"""
+    provider = _make_provider(monkeypatch)
+    invocation = _make_invocation()
+
+    async def fake_query(*args, **kwargs):
+        yield _make_result_message(
+            '{"action_type":"rest"}\nextra notes with braces {"debug": true}'
+        )
+
+    monkeypatch.setattr(provider_module, "query", fake_query)
+
+    result = await provider.decide(invocation)
+
+    assert result.action_type == "rest"
+
+
 # ---------------------------------------------------------------------------
 # 红灯测试4: CancelledError 不触发重试，直接静默返回 rest
 # ---------------------------------------------------------------------------

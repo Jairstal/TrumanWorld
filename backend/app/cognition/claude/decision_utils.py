@@ -59,15 +59,31 @@ def clean_response_text(text: str) -> str:
     return cleaned.strip()
 
 
+def _extract_first_json_object(text: str) -> str | None:
+    decoder = json.JSONDecoder()
+    search_from = 0
+
+    while True:
+        start = text.find("{", search_from)
+        if start == -1:
+            return None
+        try:
+            obj, end = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            search_from = start + 1
+            continue
+        if isinstance(obj, dict):
+            return text[start:end]
+        search_from = start + 1
+
+
 def parse_runtime_decision(text: str) -> RuntimeDecision:
     cleaned = clean_response_text(text)
     try:
         return RuntimeDecision.model_validate_json(cleaned)
     except Exception:
-        start = cleaned.find("{")
-        end = cleaned.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            json_str = cleaned[start : end + 1]
+        json_str = _extract_first_json_object(cleaned)
+        if json_str is not None:
             try:
                 return RuntimeDecision.model_validate_json(json_str)
             except (json.JSONDecodeError, ValidationError) as exc:

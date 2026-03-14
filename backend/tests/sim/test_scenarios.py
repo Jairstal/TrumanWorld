@@ -89,6 +89,67 @@ def test_truman_world_scenario_registers_fallback_hook_on_runtime(tmp_path):
     assert backend.hook is not None
 
 
+def test_truman_world_scenario_fallback_talks_to_nearby_agent():
+    scenario = TrumanWorldScenario()
+
+    intent = scenario.fallback_intent(
+        agent_id="cast-1",
+        current_location_id="loc-square",
+        home_location_id="loc-home",
+        nearby_agent_id="truman-1",
+        world_role="cast",
+        current_status={},
+        scenario_state={},
+        scenario_guidance=None,
+    )
+
+    assert intent is not None
+    assert intent.action_type == "talk"
+    assert intent.target_agent_id == "truman-1"
+
+
+def test_truman_world_scenario_fallback_uses_director_guidance_location_hint():
+    scenario = TrumanWorldScenario()
+
+    intent = scenario.fallback_intent(
+        agent_id="cast-1",
+        current_location_id="loc-home",
+        home_location_id="loc-home",
+        nearby_agent_id=None,
+        world_role="cast",
+        current_status={},
+        scenario_state={},
+        scenario_guidance={
+            "director_scene_goal": "gather",
+            "director_location_hint": "loc-plaza",
+            "director_message_hint": "Head to the plaza naturally.",
+        },
+    )
+
+    assert intent is not None
+    assert intent.action_type == "move"
+    assert intent.target_location_id == "loc-plaza"
+
+
+def test_truman_world_scenario_fallback_returns_home_when_idle_and_away():
+    scenario = TrumanWorldScenario()
+
+    intent = scenario.fallback_intent(
+        agent_id="cast-1",
+        current_location_id="loc-plaza",
+        home_location_id="loc-home",
+        nearby_agent_id=None,
+        world_role="cast",
+        current_status={},
+        scenario_state={},
+        scenario_guidance=None,
+    )
+
+    assert intent is not None
+    assert intent.action_type == "move"
+    assert intent.target_location_id == "loc-home"
+
+
 @pytest.mark.asyncio
 async def test_truman_world_scenario_seed_and_state_update(db_session):
     run = SimulationRun(id="run-scenario-seed", name="scenario-seed", status="running")

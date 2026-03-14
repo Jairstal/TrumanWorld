@@ -338,12 +338,18 @@ class TrumanWorldCoordinator:
         director_guidance: DirectorGuidance = {}
         if scenario_guidance:
             director_guidance = build_director_guidance(
-                scene_goal=scenario_guidance.get("scene_goal"),
-                priority=scenario_guidance.get("priority"),
-                message_hint=scenario_guidance.get("message_hint"),
-                target_agent_id=scenario_guidance.get("target_agent_id"),
-                location_hint=scenario_guidance.get("location_hint"),
-                reason=scenario_guidance.get("reason"),
+                scene_goal=scenario_guidance.get("scene_goal")
+                or scenario_guidance.get("director_scene_goal"),
+                priority=scenario_guidance.get("priority")
+                or scenario_guidance.get("director_priority"),
+                message_hint=scenario_guidance.get("message_hint")
+                or scenario_guidance.get("director_message_hint"),
+                target_agent_id=scenario_guidance.get("target_agent_id")
+                or scenario_guidance.get("director_target_agent_id"),
+                location_hint=scenario_guidance.get("location_hint")
+                or scenario_guidance.get("director_location_hint"),
+                reason=scenario_guidance.get("reason")
+                or scenario_guidance.get("director_reason"),
             )
         runtime_world: RuntimeWorldContext = {
             "world_role": world_role,

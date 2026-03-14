@@ -67,6 +67,19 @@ class ContextCapturingDecisionProvider(AgentDecisionProvider):
         return RuntimeDecision(action_type="rest")
 
 
+class MixedOutcomeDecisionProvider(AgentDecisionProvider):
+    def __init__(self, *, failing_agent_ids: set[str], success_action: str = "work") -> None:
+        self.failing_agent_ids = set(failing_agent_ids)
+        self.success_action = success_action
+        self.calls: list[str] = []
+
+    async def decide(self, invocation: RuntimeInvocation, runtime_ctx=None):
+        self.calls.append(invocation.agent_id)
+        if invocation.agent_id in self.failing_agent_ids:
+            raise RuntimeError(f"forced failure for {invocation.agent_id}")
+        return RuntimeDecision(action_type=self.success_action)
+
+
 class FakeScenario(Scenario):
     def __init__(self) -> None:
         self.runtime_configured = False
@@ -1536,6 +1549,119 @@ async def test_prepare_intents_from_data_respects_runtime_concurrency_limit(db_s
 
 
 @pytest.mark.asyncio
+async def test_prepare_intents_from_data_uses_scenario_fallback_for_failed_agent(db_session):
+    from app.agent.registry import AgentRegistry
+    from app.agent.runtime import AgentRuntime
+    from app.sim.types import AgentDecisionSnapshot
+    from app.sim.world import WorldState
+    import tempfile
+    from pathlib import Path
+    from datetime import datetime, timezone
+    import shutil
+
+    run_id = "run-fallback-per-agent-1"
+    run = SimulationRun(id=run_id, name="fallback-per-agent", status="running", current_tick=1)
+    agents = [
+        Agent(
+            id="agent-fallback-ok",
+            run_id=run_id,
+            name="Agent OK",
+            occupation="resident",
+            personality={},
+            profile={},
+            status={},
+            current_plan={},
+        ),
+        Agent(
+            id="agent-fallback-bad",
+            run_id=run_id,
+            name="Agent Bad",
+            occupation="resident",
+            personality={},
+            profile={},
+            status={},
+            current_plan={},
+        ),
+    ]
+    db_session.add(run)
+    db_session.add_all(agents)
+    await db_session.commit()
+
+    tmp_path = Path(tempfile.mkdtemp())
+    try:
+        for agent in agents:
+            agent_dir = tmp_path / agent.id
+            agent_dir.mkdir(parents=True)
+            (agent_dir / "agent.yml").write_text(
+                f"id: {agent.id}\nname: {agent.name}\noccupation: resident\nhome: loc-1\n",
+                encoding="utf-8",
+            )
+            (agent_dir / "prompt.md").write_text("# Prompt\nBase prompt", encoding="utf-8")
+
+        provider = MixedOutcomeDecisionProvider(failing_agent_ids={"agent-fallback-bad"})
+        runtime = AgentRuntime(
+            registry=AgentRegistry(tmp_path),
+            backend=HeuristicAgentBackend(provider),
+        )
+
+        class FallbackScenario(FakeScenario):
+            def fallback_intent(
+                self,
+                *,
+                agent_id: str,
+                current_location_id: str,
+                home_location_id: str | None,
+                nearby_agent_id: str | None,
+                world_role: str | None = None,
+                current_status: dict | None = None,
+                scenario_state: dict | None = None,
+                scenario_guidance: ScenarioGuidance | None = None,
+            ):
+                return ActionIntent(
+                    agent_id=agent_id,
+                    action_type="move",
+                    target_location_id=home_location_id or current_location_id,
+                )
+
+        orchestrator = TickOrchestrator(
+            agent_runtime=runtime,
+            scenario=FallbackScenario(),
+        )
+
+        world = WorldState(current_time=datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc))
+        snapshots: list[AgentDecisionSnapshot] = []
+        for agent in agents:
+            world.agents[agent.id] = type("S", (), {"id": agent.id, "status": {}, "location_id": "loc-1"})()
+            snapshots.append(
+                AgentDecisionSnapshot(
+                    id=agent.id,
+                    current_goal="rest",
+                    current_location_id="loc-1",
+                    home_location_id="loc-home",
+                    profile={},
+                    recent_events=[],
+                )
+            )
+
+        intents, llm_records = await orchestrator.prepare_intents_from_data(
+            world=world,
+            agent_data=snapshots,
+            engine=None,
+            run_id=run_id,
+            tick_no=1,
+        )
+
+        intents_by_agent = {intent.agent_id: intent for intent in intents}
+        assert len(intents) == 2
+        assert llm_records == []
+        assert intents_by_agent["agent-fallback-ok"].action_type == "work"
+        assert intents_by_agent["agent-fallback-bad"].action_type == "move"
+        assert intents_by_agent["agent-fallback-bad"].target_location_id == "loc-home"
+    finally:
+        shutil.rmtree(tmp_path)
+
+
+@pytest.mark.asyncio
 async def test_run_tick_isolated_persists_llm_calls(db_session):
     """run_tick_isolated 应将 llm_call 记录写入 llm_calls 表。"""
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -1607,3 +1733,106 @@ async def test_run_tick_isolated_persists_llm_calls(db_session):
 
     await engine.dispose()
     shutil.rmtree(tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_run_tick_isolated_advances_when_one_agent_falls_back():
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+    from app.agent.registry import AgentRegistry
+    from app.agent.runtime import AgentRuntime
+    from app.store.models import Base
+    import tempfile
+    from pathlib import Path
+    import shutil
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    run_id = "run-isolated-fallback-1"
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        run = SimulationRun(
+            id=run_id,
+            name="isolated-fallback",
+            status="running",
+            current_tick=0,
+            tick_minutes=5,
+            scenario_type="truman_world",
+        )
+        home = Location(id="loc-home-fb", run_id=run_id, name="Home", location_type="home", capacity=4)
+        office = Location(
+            id="loc-office-fb",
+            run_id=run_id,
+            name="Office",
+            location_type="office",
+            capacity=4,
+        )
+        ok_agent = Agent(
+            id="agent-fallback-ok-iso",
+            run_id=run_id,
+            name="Alice",
+            occupation="resident",
+            home_location_id=home.id,
+            current_location_id=office.id,
+            personality={},
+            profile={"agent_config_id": "agent-fallback-ok-iso", "world_role": "cast"},
+            status={},
+            current_plan={},
+        )
+        bad_agent = Agent(
+            id="agent-fallback-bad-iso",
+            run_id=run_id,
+            name="Bob",
+            occupation="resident",
+            home_location_id=home.id,
+            current_location_id=office.id,
+            personality={},
+            profile={"agent_config_id": "agent-fallback-bad-iso", "world_role": "cast"},
+            status={},
+            current_plan={},
+        )
+        session.add_all([run, home, office, ok_agent, bad_agent])
+        await session.commit()
+
+    tmp_path = Path(tempfile.mkdtemp())
+    try:
+        for agent_id, name in (
+            ("agent-fallback-ok-iso", "Alice"),
+            ("agent-fallback-bad-iso", "Bob"),
+        ):
+            agent_dir = tmp_path / agent_id
+            agent_dir.mkdir(parents=True)
+            (agent_dir / "agent.yml").write_text(
+                f"id: {agent_id}\nname: {name}\noccupation: resident\nhome: loc-home-fb\n",
+                encoding="utf-8",
+            )
+            (agent_dir / "prompt.md").write_text(f"# {name}\nBase prompt", encoding="utf-8")
+
+        provider = MixedOutcomeDecisionProvider(
+            failing_agent_ids={"agent-fallback-bad-iso"},
+            success_action="work",
+        )
+        runtime = AgentRuntime(
+            registry=AgentRegistry(tmp_path),
+            backend=HeuristicAgentBackend(provider),
+        )
+        service = SimulationService.create_for_scheduler(runtime)
+
+        result = await service.run_tick_isolated(run_id, engine)
+
+        assert result.tick_no == 1
+        assert any(item.action_type == "talk" for item in result.accepted)
+        assert len(result.rejected) == 1
+
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            updated_run = await RunRepository(session).get(run_id)
+            events = await EventRepository(session).list_for_run(run_id)
+            assert updated_run is not None
+            assert updated_run.current_tick == 1
+            event_types = {event.event_type for event in events}
+            assert "speech" in event_types
+            assert "conversation_started" in event_types
+            assert any(event.event_type.endswith("_rejected") for event in events)
+    finally:
+        await engine.dispose()
+        shutil.rmtree(tmp_path)

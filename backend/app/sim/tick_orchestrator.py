@@ -197,7 +197,7 @@ class TickOrchestrator:
                     workplace_location_id=workplace_location_id,
                     current_plan=agent_snapshot.current_plan,
                 )
-            except Exception:
+            except Exception as exc:
                 logger.exception(
                     "agent_decision_failed run_id=%s tick_no=%s agent_id=%s runtime_agent_id=%s "
                     "queue_delay_ms=%s",
@@ -207,7 +207,25 @@ class TickOrchestrator:
                     runtime_agent_id,
                     queue_delay_ms,
                 )
-                raise
+                fallback_intent = self._build_fallback_intent(
+                    agent_id=agent_id,
+                    current_location_id=agent_snapshot.current_location_id,
+                    home_location_id=agent_snapshot.home_location_id,
+                    world=world,
+                    profile=profile if isinstance(profile, dict) else {},
+                    current_status=state.status,
+                )
+                logger.warning(
+                    "agent_decision_recovered_with_fallback run_id=%s tick_no=%s agent_id=%s "
+                    "runtime_agent_id=%s fallback_action_type=%s error=%s",
+                    run_id,
+                    tick_no,
+                    agent_id,
+                    runtime_agent_id,
+                    fallback_intent.action_type,
+                    exc,
+                )
+                return fallback_intent
 
             logger.debug(
                 "agent_decision_completed run_id=%s tick_no=%s agent_id=%s runtime_agent_id=%s "
@@ -239,6 +257,38 @@ class TickOrchestrator:
             concurrency_limit,
         )
         return intents, collector.records
+
+    def _build_fallback_intent(
+        self,
+        *,
+        agent_id: str,
+        current_location_id: str | None,
+        home_location_id: str | None,
+        world: WorldState,
+        profile: dict,
+        current_status: dict | None,
+    ) -> ActionIntent:
+        nearby_agent_id = (
+            find_nearby_agent(world, agent_id, current_location_id)
+            if current_location_id is not None
+            else None
+        )
+        fallback_intent = self.scenario.fallback_intent(
+            agent_id=agent_id,
+            current_location_id=current_location_id or home_location_id or "",
+            home_location_id=home_location_id,
+            nearby_agent_id=nearby_agent_id,
+            world_role=get_world_role(profile),
+            current_status=current_status,
+            scenario_guidance=get_scenario_guidance(profile),
+        )
+        if fallback_intent is not None:
+            return fallback_intent
+
+        return ActionIntent(
+            agent_id=agent_id,
+            action_type="rest",
+        )
 
     async def decide_intent_for_agent(
         self,

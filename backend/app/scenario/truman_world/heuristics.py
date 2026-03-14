@@ -1,13 +1,29 @@
-"""Heuristics for TrumanWorld scenario.
-
-All agent behavior decisions are delegated to LLM.
-This module is kept as a compatibility shim; build_truman_world_decision always returns None.
-"""
+"""Heuristics for TrumanWorld scenario fallback decisions."""
 
 from __future__ import annotations
 
 from app.cognition.claude.decision_utils import RuntimeDecision
 from app.sim.types import RuntimeWorldContext
+
+
+def _get_guidance_value(world: RuntimeWorldContext, key: str) -> str | None:
+    raw = world.get(key) or world.get(f"director_{key}")
+    return raw if isinstance(raw, str) and raw else None
+
+
+def _build_fallback_message(
+    *,
+    world_role: str | None,
+    scene_goal: str | None,
+    message_hint: str | None,
+) -> str:
+    if message_hint:
+        return message_hint
+    if scene_goal == "gather":
+        return "我们去广场那边看看吧。"
+    if world_role == "cast":
+        return "嗨，刚好碰到你，聊两句吧。"
+    return "嗨，今天怎么样？"
 
 
 def build_truman_world_decision(
@@ -18,5 +34,33 @@ def build_truman_world_decision(
     home_location_id: str | None,
     agent_id: str | None = None,
 ) -> RuntimeDecision | None:
-    """No heuristic overrides — all decisions delegated to LLM."""
-    return None
+    world_role = world.get("world_role") if isinstance(world.get("world_role"), str) else None
+    scene_goal = _get_guidance_value(world, "scene_goal")
+    message_hint = _get_guidance_value(world, "message_hint")
+    target_agent_id = _get_guidance_value(world, "target_agent_id")
+    location_hint = _get_guidance_value(world, "location_hint")
+
+    if nearby_agent_id and (target_agent_id is None or target_agent_id == nearby_agent_id):
+        return RuntimeDecision(
+            action_type="talk",
+            target_agent_id=nearby_agent_id,
+            message=_build_fallback_message(
+                world_role=world_role,
+                scene_goal=scene_goal,
+                message_hint=message_hint,
+            ),
+        )
+
+    if location_hint and location_hint != current_location_id:
+        return RuntimeDecision(
+            action_type="move",
+            target_location_id=location_hint,
+        )
+
+    if home_location_id and home_location_id != current_location_id:
+        return RuntimeDecision(
+            action_type="move",
+            target_location_id=home_location_id,
+        )
+
+    return RuntimeDecision(action_type="rest")
