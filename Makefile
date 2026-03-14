@@ -30,7 +30,7 @@ frontend-install:
 	cd $(FRONTEND_DIR) && npm install
 
 backend-dev:
-	cd $(BACKEND_DIR) && env -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY -u ANTHROPIC_BASE_URL uv run uvicorn app.main:app --reload --host 127.0.0.1 --port $(BACKEND_PORT)
+	cd $(BACKEND_DIR) && TRUMANWORLD_DATABASE_URL=$(DATABASE_URL) env -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY -u ANTHROPIC_BASE_URL uv run uvicorn app.main:app --reload --host 127.0.0.1 --port $(BACKEND_PORT)
 
 frontend-dev: sync-agent-logos
 	cd $(FRONTEND_DIR) && INTERNAL_API_BASE_URL=http://127.0.0.1:$(BACKEND_PORT)/api NEXT_PUBLIC_API_BASE_URL=/api npm run dev -- --port $(FRONTEND_PORT) --hostname 0.0.0.0
@@ -48,7 +48,7 @@ benchmark-reactor-pool:
 	cd $(BACKEND_DIR) && uv run python scripts/benchmark_reactor_pooling.py --base-url http://127.0.0.1:$(BACKEND_PORT)/api --ticks 10 --seed-demo
 
 migrate:
-	cd $(BACKEND_DIR) && uv run alembic upgrade head
+	cd $(BACKEND_DIR) && TRUMANWORLD_DATABASE_URL=$(DATABASE_URL) uv run alembic upgrade head
 
 pre-commit:
 	$(PYTHON) -m pre_commit run --all-files
@@ -57,9 +57,10 @@ pre-commit:
 # 生产环境请务必设置环境变量 TRUMANWORLD_DB_PASSWORD
 DB_CONTAINER_NAME := trumanworld-db-test
 DB_PORT := 5432
-DB_USER := truman
-DB_PASSWORD ?= $(or $(TRUMANWORLD_DB_PASSWORD),truman)
-DB_NAME := trumanworld
+DB_USER := $(or $(TRUMANWORLD_DB_USER),truman)
+DB_PASSWORD := $(or $(TRUMANWORLD_DB_PASSWORD),truman)
+DB_NAME := $(or $(TRUMANWORLD_DB_NAME),trumanworld)
+DATABASE_URL := postgresql+psycopg://$(DB_USER):$(DB_PASSWORD)@127.0.0.1:$(DB_PORT)/$(DB_NAME)
 
 # 应用端口配置
 BACKEND_PORT := 18080
@@ -168,7 +169,7 @@ db-wait:
 # 执行数据库迁移
 db-migrate: db-wait
 	@echo "🔄 执行数据库迁移..."
-	@cd $(BACKEND_DIR) && uv run alembic upgrade head
+	@cd $(BACKEND_DIR) && TRUMANWORLD_DATABASE_URL=$(DATABASE_URL) uv run alembic upgrade head
 
 # 一行命令同时启动前后端（测试环境，非 Docker）
 # 使用非常用端口避免冲突：后端 18080，前端 13000
@@ -188,7 +189,7 @@ dev: check-ports db-start db-migrate sync-agent-logos
 	echo "================================"; \
 	echo "按 Ctrl+C 停止前后端（数据库会继续运行）"; \
 	echo ""; \
-	(cd $(BACKEND_DIR) && env -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY -u ANTHROPIC_BASE_URL uv run uvicorn app.main:app --host 127.0.0.1 --port $(BACKEND_PORT) 2>&1 | tee "$${LOG_FILE_BACKEND}") & \
+	(cd $(BACKEND_DIR) && TRUMANWORLD_DATABASE_URL=$(DATABASE_URL) env -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY -u ANTHROPIC_BASE_URL uv run uvicorn app.main:app --host 127.0.0.1 --port $(BACKEND_PORT) 2>&1 | tee "$${LOG_FILE_BACKEND}") & \
 	BACKEND_PID=$$!; \
 	(cd $(FRONTEND_DIR) && INTERNAL_API_BASE_URL=http://127.0.0.1:$(BACKEND_PORT)/api NEXT_PUBLIC_API_BASE_URL=/api npm run dev -- --port $(FRONTEND_PORT) --hostname 0.0.0.0 2>&1 | tee "$${LOG_FILE_FRONTEND}") & \
 	FRONTEND_PID=$$!; \
