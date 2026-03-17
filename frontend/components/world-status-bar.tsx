@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useDemoAccess } from "@/components/demo-access-provider";
 import { useWorld } from "@/components/world-context";
 import { startRunResult, pauseRunResult } from "@/lib/api";
 import { formatSimTime } from "@/lib/world-utils";
@@ -18,6 +19,7 @@ function formatElapsed(seconds: number): string {
 
 export function WorldStatusBar() {
   const { runId, world, pulse, error, isValidating, refresh } = useWorld();
+  const { adminAuthorized, writeProtected } = useDemoAccess();
   const [isToggling, setIsToggling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const activeRun = pulse?.run ?? world?.run;
@@ -34,6 +36,7 @@ export function WorldStatusBar() {
   const localStartRef = useRef<number | null>(null);
 
   const isRunning = activeRun?.status === "running";
+  const canWrite = adminAuthorized || !writeProtected;
   const startedAt = activeRun?.started_at;
   const elapsedBase = activeRun?.elapsed_seconds ?? 0;
   const simDay =
@@ -131,33 +134,39 @@ export function WorldStatusBar() {
             : "模拟时间"}
       </span>
 
-      <button
-        type="button"
-        onClick={handleToggleRun}
-        disabled={isToggling}
-        className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition ${
-          isRunning
-            ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
-            : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-        } ${isToggling ? "opacity-50 cursor-not-allowed" : ""}`}
-        title={isRunning ? "暂停模拟" : "启动模拟"}
-      >
-        {isToggling ? (
-          <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        ) : isRunning ? (
-          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
-            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        )}
-        {isRunning ? "暂停" : "启动"}
-      </button>
+      {canWrite ? (
+        <button
+          type="button"
+          onClick={handleToggleRun}
+          disabled={isToggling}
+          className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition ${
+            isRunning
+              ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+              : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+          } ${isToggling ? "opacity-50 cursor-not-allowed" : ""}`}
+          title={isRunning ? "暂停模拟" : "启动模拟"}
+        >
+          {isToggling ? (
+            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          ) : isRunning ? (
+            <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          )}
+          {isRunning ? "暂停" : "启动"}
+        </button>
+      ) : (
+        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-sm font-medium text-amber-800">
+          只读演示
+        </span>
+      )}
 
       <span className="inline-flex min-w-[7.5rem] items-center justify-center gap-2 rounded-full bg-slate-900 px-3 py-1.5 text-sm text-white tabular-nums">
         <span

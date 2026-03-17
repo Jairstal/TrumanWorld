@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 
 import { injectDirectorEventResult } from "@/lib/api";
+import { useDemoAccess } from "@/components/demo-access-provider";
 
 type DirectorEventFormProps = {
   runId: string;
@@ -78,6 +79,7 @@ export function DirectorEventForm({
   compact,
   locations = [],
 }: DirectorEventFormProps) {
+  const { adminAuthorized, writeProtected } = useDemoAccess();
   const [eventType, setEventType] = useState<(typeof EVENT_OPTIONS)[number]["value"]>("broadcast");
   const [message, setMessage] = useState("Town hall at plaza");
   const [locationId, setLocationId] = useState("");
@@ -88,6 +90,15 @@ export function DirectorEventForm({
   const presets = PRESET_MESSAGES[eventType] ?? PRESET_MESSAGES.broadcast;
   const selectedLocation = locations.find((l) => l.id === locationId);
   const isSubmitDisabled = isPending || (eventOption.needsLocation && !locationId);
+  const canWrite = adminAuthorized || !writeProtected;
+
+  if (!canWrite) {
+    return (
+      <div className="rounded-[20px] border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
+        当前为只读演示模式。导演干预在解锁管理员控制后可用。
+      </div>
+    );
+  }
 
   return (
     <form

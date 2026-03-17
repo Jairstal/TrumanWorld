@@ -163,6 +163,11 @@ export type WorldPulse = {
   daily_stats?: WorldSnapshot["daily_stats"];
 };
 
+export type DemoAccessStatus = {
+  write_protected: boolean;
+  admin_authorized: boolean;
+};
+
 export type DirectorMemory = {
   id: string;
   tick_no: number;

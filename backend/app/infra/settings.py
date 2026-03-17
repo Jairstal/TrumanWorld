@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     api_prefix: str = "/api"
+    demo_admin_password: str | None = None
     # 数据库 URL 必须通过环境变量 TRUMANWORLD_DATABASE_URL 提供
     # 开发环境可使用: postgresql+psycopg://truman:truman@localhost:5432/trumanworld
     database_url: str | None = None

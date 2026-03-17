@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useState, useEffect } from "react";
+import { DemoAccessControl } from "@/components/demo-access-control";
+import { useDemoAccess } from "@/components/demo-access-provider";
 import { deleteRunResult } from "@/lib/api";
 import { useRuns } from "@/components/runs-provider";
 import type { RunSummary } from "@/lib/types";
@@ -138,7 +140,12 @@ export function AppShell({ children }: AppShellProps) {
         </button>
       )}
 
-      <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex justify-end border-b border-white/60 bg-white/55 px-6 py-3 backdrop-blur-sm">
+          <DemoAccessControl />
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
@@ -184,8 +191,10 @@ function SidebarNavItemWide({
 function RunListItem({ run, index, onDelete }: { run: RunSummary; index: number; onDelete?: (runId: string) => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { adminAuthorized, writeProtected } = useDemoAccess();
   const isActive = pathname.startsWith(`/runs/${run.id}`);
   const [isDeleting, setIsDeleting] = useState(false);
+  const canWrite = adminAuthorized || !writeProtected;
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -244,26 +253,28 @@ function RunListItem({ run, index, onDelete }: { run: RunSummary; index: number;
         </div>
       </Link>
       {/* 删除按钮 - 悬浮时显示 */}
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={isDeleting}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-all hover:bg-red-50 hover:text-red-500 ${
-          isDeleting ? "opacity-50" : "opacity-0 group-hover:opacity-100"
-        }`}
-        title="删除世界"
-      >
-        {isDeleting ? (
-          <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-            <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </button>
+      {canWrite ? (
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-all hover:bg-red-50 hover:text-red-500 ${
+            isDeleting ? "opacity-50" : "opacity-0 group-hover:opacity-100"
+          }`}
+          title="删除世界"
+        >
+          {isDeleting ? (
+            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+              <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+      ) : null}
       {isActive && (
         <svg className="h-4 w-4 shrink-0 text-moss/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M9 5l7 7-7 7" />

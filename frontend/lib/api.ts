@@ -2,6 +2,7 @@ import type {
   AgentDetails,
   AgentSummary,
   CreateRunResponse,
+  DemoAccessStatus,
   DirectorMemory,
   RunSummary,
   SystemMetrics,
@@ -18,6 +19,7 @@ export type {
   AgentDetails,
   AgentSummary,
   CreateRunResponse,
+  DemoAccessStatus,
   DirectorMemory,
   RunSummary,
   SystemMetrics,
@@ -50,6 +52,7 @@ declare global {
 
 const DEFAULT_API_BASE_URL = "/api";
 const DEFAULT_INTERNAL_API_BASE_URL = "http://127.0.0.1:18080/api";
+const DEMO_ADMIN_STORAGE_KEY = "trumanworld.demo_admin_password";
 
 function resolveApiBaseUrl() {
   const runtimeBaseUrl =
@@ -73,6 +76,30 @@ export function buildApiUrl(path: string) {
   return `${resolveApiBaseUrl()}${path}`;
 }
 
+export function getDemoAdminPassword() {
+  if (typeof window === "undefined") return null;
+  return window.sessionStorage.getItem(DEMO_ADMIN_STORAGE_KEY);
+}
+
+export function setDemoAdminPassword(password: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(DEMO_ADMIN_STORAGE_KEY, password);
+}
+
+export function clearDemoAdminPassword() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(DEMO_ADMIN_STORAGE_KEY);
+}
+
+function buildDemoAdminHeaders() {
+  const password = getDemoAdminPassword();
+  const headers: Record<string, string> = {};
+  if (password) {
+    headers["x-demo-admin-password"] = password;
+  }
+  return headers;
+}
+
 async function fetchResultUrl<T>(url: string): Promise<ApiResult<T>> {
   try {
     const controller = new AbortController();
@@ -83,6 +110,7 @@ async function fetchResultUrl<T>(url: string): Promise<ApiResult<T>> {
       signal: controller.signal,
       headers: {
         Accept: "application/json",
+        ...buildDemoAdminHeaders(),
       },
     });
 
@@ -125,6 +153,7 @@ async function postResult<T>(path: string, body: unknown): Promise<ApiResult<T>>
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        ...buildDemoAdminHeaders(),
       },
       body: JSON.stringify(body),
     });
@@ -277,6 +306,7 @@ async function deleteResult<T>(path: string): Promise<ApiResult<T>> {
       signal: controller.signal,
       headers: {
         Accept: "application/json",
+        ...buildDemoAdminHeaders(),
       },
     });
 
@@ -312,6 +342,10 @@ export async function deleteRunResult(
 
 export async function restoreAllRunsResult(): Promise<ApiResult<RunSummary[]>> {
   return postResult<RunSummary[]>("/runs/restore-all", {});
+}
+
+export async function getDemoAccessStatusResult(): Promise<ApiResult<DemoAccessStatus>> {
+  return fetchResult<DemoAccessStatus>("/system/access");
 }
 
 export async function fetchApiResult<T>(url: string): Promise<ApiResult<T>> {

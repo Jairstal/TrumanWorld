@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.api.routes.system as system_route
 import app.sim.day_boundary_coordinator as day_boundary_coordinator_module
+from app.infra.settings import get_settings
 from app.sim.scheduler import get_scheduler
 from app.store.models import Agent, Event, Location, SimulationRun
 
@@ -111,6 +112,33 @@ async def test_system_overview_endpoint_returns_project_components(
 
 
 @pytest.mark.asyncio
+async def test_system_access_reports_demo_mode_status(client, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("TRUMANWORLD_DEMO_ADMIN_PASSWORD", "secret-demo-password")
+    get_settings.cache_clear()
+
+    try:
+        response = await client.get("/api/system/access")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "write_protected": True,
+            "admin_authorized": False,
+        }
+
+        unlocked_response = await client.get(
+            "/api/system/access",
+            headers={"x-demo-admin-password": "secret-demo-password"},
+        )
+        assert unlocked_response.status_code == 200
+        assert unlocked_response.json() == {
+            "write_protected": True,
+            "admin_authorized": True,
+        }
+    finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
 async def test_cors_preflight_allows_frontend_origin(client):
     response = await client.options(
         "/api/runs",
@@ -123,6 +151,29 @@ async def test_cors_preflight_allows_frontend_origin(client):
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:33100"
+
+
+@pytest.mark.asyncio
+async def test_create_run_requires_admin_header_when_demo_password_configured(
+    client, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("TRUMANWORLD_DEMO_ADMIN_PASSWORD", "secret-demo-password")
+    get_settings.cache_clear()
+
+    try:
+        unauthorized = await client.post("/api/runs", json={"name": "blocked-run"})
+        assert unauthorized.status_code == 401
+        assert unauthorized.json()["detail"] == "Admin access required for write operations"
+
+        authorized = await client.post(
+            "/api/runs",
+            json={"name": "allowed-run"},
+            headers={"x-demo-admin-password": "secret-demo-password"},
+        )
+        assert authorized.status_code == 200
+        assert authorized.json()["name"] == "allowed-run"
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.mark.asyncio

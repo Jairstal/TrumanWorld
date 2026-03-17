@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { pauseRunResult, resumeRunResult, restoreAllRunsResult } from "@/lib/api";
+import { useDemoAccess } from "@/components/demo-access-provider";
 import { useRuns } from "@/components/runs-provider";
 
 type Run = { id: string; status: string; was_running_before_restart?: boolean };
@@ -11,6 +12,7 @@ type RunControlsProps = {
 };
 
 export function RunControls({ runs }: RunControlsProps) {
+  const { adminAuthorized, writeProtected } = useDemoAccess();
   const { refreshRuns } = useRuns();
   const [isPending, startTransition] = useTransition();
   const [busy, setBusy] = useState<"pause" | "resume" | "restore" | null>(null);
@@ -60,6 +62,8 @@ export function RunControls({ runs }: RunControlsProps) {
       await refreshRuns();
     });
   };
+
+  if (writeProtected && !adminAuthorized) return null;
 
   if (runs.length === 0) return null;
 

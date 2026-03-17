@@ -3,6 +3,8 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.api.auth import require_demo_admin_access
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.runs import get_required_run
@@ -171,6 +173,7 @@ async def get_director_memories(
 async def inject_director_event(
     run_id: UUID,
     payload: DirectorEventRequest,
+    _: None = Depends(require_demo_admin_access),
     session: AsyncSession = Depends(get_db_session),
 ) -> StatusResponse:
     await get_required_run(session, run_id)

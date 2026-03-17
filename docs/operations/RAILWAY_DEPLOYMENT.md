@@ -41,6 +41,18 @@ TRUMANWORLD_DATABASE_URL=${{Postgres.DATABASE_URL}}
 TRUMANWORLD_CORS_ALLOWED_ORIGINS=["https://${{Frontend.RAILWAY_PUBLIC_DOMAIN}}"]
 ```
 
+如果你要把站点作为公开 demo 展示，同时避免访客启动、暂停或删除 run，建议额外配置：
+
+```env
+TRUMANWORLD_DEMO_ADMIN_PASSWORD=换成你自己的强密码
+```
+
+说明：
+
+- 配置后，前端默认进入只读演示模式，访客仍可查看 world、timeline、agent 详情
+- 创建 run、启动/暂停、删除、导演干预等写操作会被后端拦截
+- 页面右上角会出现 `Demo / Read Only` 和管理员解锁入口；只有输入正确密码后才显示控制按钮
+
 按需补充：
 
 ```env

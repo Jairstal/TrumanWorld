@@ -2,6 +2,8 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.api.auth import require_demo_admin_access
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,6 +85,7 @@ async def cleanup_run_runtime_resources(run_id: str) -> None:
 )
 async def create_run(
     payload: RunCreateRequest,
+    _: None = Depends(require_demo_admin_access),
     session: AsyncSession = Depends(get_db_session),
 ) -> RunResponse:
     logger.info(f"Creating new run: {payload.name}")
@@ -172,6 +175,7 @@ async def list_runs(
     description="恢复服务重启前正在运行的所有模拟运行，自动启动 tick 调度",
 )
 async def restore_all_runs(
+    _: None = Depends(require_demo_admin_access),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[RunResponse]:
     logger.info("Restore all runs requested")
@@ -205,6 +209,7 @@ async def restore_all_runs(
 )
 async def start_run(
     run_id: UUID,
+    _: None = Depends(require_demo_admin_access),
     session: AsyncSession = Depends(get_db_session),
 ) -> RunResponse:
     run = await get_required_run(session, run_id)
@@ -219,6 +224,7 @@ async def start_run(
 )
 async def pause_run(
     run_id: UUID,
+    _: None = Depends(require_demo_admin_access),
     session: AsyncSession = Depends(get_db_session),
 ) -> RunResponse:
     repo = RunRepository(session)
@@ -236,6 +242,7 @@ async def pause_run(
 )
 async def resume_run(
     run_id: UUID,
+    _: None = Depends(require_demo_admin_access),
     session: AsyncSession = Depends(get_db_session),
 ) -> RunResponse:
     run = await get_required_run(session, run_id)
@@ -250,6 +257,7 @@ async def resume_run(
 )
 async def advance_run_tick(
     run_id: UUID,
+    _: None = Depends(require_demo_admin_access),
     session: AsyncSession = Depends(get_db_session),
 ) -> TickResponse:
     logger.info(f"Advancing tick for run {run_id}")
@@ -296,6 +304,7 @@ async def get_run(
 )
 async def delete_run(
     run_id: UUID,
+    _: None = Depends(require_demo_admin_access),
     session: AsyncSession = Depends(get_db_session),
 ) -> StatusResponse:
     logger.info(f"Deleting run: {run_id}")

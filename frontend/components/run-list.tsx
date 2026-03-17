@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition, useRef, useCallback } from "react";
+import { useDemoAccess } from "@/components/demo-access-provider";
 import { deleteRunResult } from "@/lib/api";
 import { useRuns } from "@/components/runs-provider";
 import { WorldOpeningAnimation } from "@/components/world-opening-animation";
@@ -24,12 +25,14 @@ type RunListProps = {
 export function RunList({ runs }: RunListProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { adminAuthorized, writeProtected } = useDemoAccess();
   const { refreshRuns } = useRuns();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [animationVisible, setAnimationVisible] = useState(false);
   const [animationRunName, setAnimationRunName] = useState("");
   const pendingRunId = useRef<string | null>(null);
+  const canWrite = adminAuthorized || !writeProtected;
 
   const handleWorldClick = useCallback((run: Run) => {
     pendingRunId.current = run.id;
@@ -118,21 +121,23 @@ export function RunList({ runs }: RunListProps) {
                   </h3>
                   <p className="mt-0.5 font-mono text-[10px] text-slate-400">{run.id.slice(0, 8)}…</p>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(run.id)}
-                  disabled={isPending && deletingId === run.id}
-                  className="shrink-0 rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-400 disabled:opacity-50"
-                  title="删除"
-                >
-                  {deletingId === run.id ? (
-                    <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-red-400" />
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                    </svg>
-                  )}
-                </button>
+                {canWrite ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(run.id)}
+                    disabled={isPending && deletingId === run.id}
+                    className="shrink-0 rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-400 disabled:opacity-50"
+                    title="删除"
+                  >
+                    {deletingId === run.id ? (
+                      <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-red-400" />
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                      </svg>
+                    )}
+                  </button>
+                ) : null}
               </div>
 
               {/* Tick 号 - 大字体突出显示 */}

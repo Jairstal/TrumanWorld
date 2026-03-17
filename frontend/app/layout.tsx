@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
+import { DemoAccessProvider } from "@/components/demo-access-provider";
 import { RunsProvider } from "@/components/runs-provider";
 import { fetchApiResult, getInternalApiBaseUrl, type ApiResult } from "@/lib/api";
 import type { RunSummary } from "@/lib/types";
@@ -30,9 +31,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             __html: `window.__TRUMANWORLD_CONFIG__ = ${JSON.stringify(runtimeConfig)};`,
           }}
         />
-        <RunsProvider initialResult={initialRunsResult}>
-          <AppShell>{children}</AppShell>
-        </RunsProvider>
+        <DemoAccessProvider>
+          <RunsProvider initialResult={initialRunsResult}>
+            <AppShell>{children}</AppShell>
+          </RunsProvider>
+        </DemoAccessProvider>
       </body>
     </html>
   );

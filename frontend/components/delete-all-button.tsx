@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useDemoAccess } from "@/components/demo-access-provider";
 import { deleteRunResult } from "@/lib/api";
 import { useRuns } from "@/components/runs-provider";
 
 type Run = { id: string };
 
 export function DeleteAllButton({ runs }: { runs: Run[] }) {
+  const { adminAuthorized, writeProtected } = useDemoAccess();
   const { refreshRuns } = useRuns();
   const [isPending, startTransition] = useTransition();
   const [isDeletingAll, setIsDeletingAll] = useState(false);
@@ -24,6 +26,10 @@ export function DeleteAllButton({ runs }: { runs: Run[] }) {
       await refreshRuns();
     });
   };
+
+  if (writeProtected && !adminAuthorized) {
+    return null;
+  }
 
   return (
     <button

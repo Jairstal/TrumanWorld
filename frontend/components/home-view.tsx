@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { CreateRunForm } from "@/components/create-run-form";
 import { RunList } from "@/components/run-list";
 import { DeleteAllButton } from "@/components/delete-all-button";
+import { useDemoAccess } from "@/components/demo-access-provider";
 import { RunControls } from "@/components/run-controls";
 import { useRuns } from "@/components/runs-provider";
 
 export function HomeView() {
   const { runs, error } = useRuns();
+  const { adminAuthorized, writeProtected } = useDemoAccess();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -17,6 +19,7 @@ export function HomeView() {
 
   const hasRuns = runs.length > 0;
   const runningCount = runs.filter((r) => r.status === "running").length;
+  const canWrite = adminAuthorized || !writeProtected;
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_top,#f7f3e8,#eef5f1_48%,#f8fafc)]">
@@ -46,18 +49,30 @@ export function HomeView() {
       <div className="flex-1 overflow-y-auto">
         <div className="space-y-8 px-8 py-8">
           {/* 创建新模拟 */}
-          <section
-            className={`transition-all duration-500 delay-100 ${
-              visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
-            }`}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-ink">创建世界</h2>
-            </div>
-            <div className="rounded-[28px] border border-white/70 bg-white/80 p-6 shadow-xs backdrop-blur-sm">
-              <CreateRunForm />
-            </div>
-          </section>
+          {canWrite ? (
+            <section
+              className={`transition-all duration-500 delay-100 ${
+                visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+              }`}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-ink">创建世界</h2>
+              </div>
+              <div className="rounded-[28px] border border-white/70 bg-white/80 p-6 shadow-xs backdrop-blur-sm">
+                <CreateRunForm />
+              </div>
+            </section>
+          ) : (
+            <section
+              className={`transition-all duration-500 delay-100 ${
+                visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+              }`}
+            >
+              <div className="rounded-[28px] border border-amber-200/80 bg-amber-50/70 p-5 text-sm text-amber-800 shadow-xs">
+                当前为演示只读模式。你可以浏览世界、时间线和角色详情；创建、启动、暂停、删除与导演干预仅在解锁后可用。
+              </div>
+            </section>
+          )}
 
           {/* 运行列表 */}
           <section
@@ -75,8 +90,8 @@ export function HomeView() {
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <RunControls runs={runs} />
-                {runs.length > 1 && <DeleteAllButton runs={runs} />}
+                {canWrite ? <RunControls runs={runs} /> : null}
+                {canWrite && runs.length > 1 ? <DeleteAllButton runs={runs} /> : null}
               </div>
             </div>
             {error ? (
